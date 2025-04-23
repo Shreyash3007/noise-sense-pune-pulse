@@ -1,102 +1,56 @@
-# NoiseSense - Crowdsourced Noise Pollution Monitoring
+# NoiseSense
 
-NoiseSense is a web application that allows users to measure, report, and visualize noise pollution in their communities.
+A web application for measuring and reporting noise pollution in your area.
 
 ## Features
 
-- Real-time noise level measurement using device microphone
-- Interactive map for location selection
-- Noise source categorization
-- Data visualization with charts and heatmaps
-- Report generation and submission to authorities
+- **Noise Measurement**: Use your device's microphone to measure noise levels
+- **Location Tracking**: Record the exact location of noise pollution
+- **Categorization**: Categorize noise sources (traffic, construction, events, etc.)
+- **Analytics**: View noise pollution trends and patterns
+- **Reporting**: Submit noise reports to help create a quieter environment
 
 ## Tech Stack
 
-- **Frontend**: Next.js, React, TailwindCSS, Framer Motion
-- **Backend**: Node.js, Express
-- **Database**: MongoDB Atlas
-- **Maps**: Leaflet, Mapbox GL
+- **Frontend**: Next.js, React, TypeScript, Tailwind CSS, Framer Motion
+- **Maps**: Leaflet, React-Leaflet
+- **Styling**: Tailwind CSS with custom animations
 
-## Environment Variables
+## Getting Started
 
-The application uses the following environment variables:
+### Prerequisites
 
-### Root Directory (.env)
-```
-# Environment
-NODE_ENV=development
+- Node.js (v14 or later)
+- npm or yarn
 
-# Server Configuration
-PORT=3000
-
-# MongoDB Configuration
-MONGODB_URI=your_mongodb_uri
-DB_NAME=noisesense
-
-# CORS Configuration
-CORS_ORIGIN=http://localhost:3000
-
-# API Configuration
-API_URL=http://localhost:3000
-
-# Next.js Configuration
-NEXT_PUBLIC_API_URL=http://localhost:3000
-```
-
-### Frontend Directory (frontend/.env)
-```
-# API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:3000
-
-# Environment
-NODE_ENV=development
-```
-
-## Deployment on Render
-
-This application is configured for deployment on Render. Follow these steps to deploy:
-
-1. Create a new Web Service on Render
-2. Connect your GitHub repository
-3. Configure the following environment variables:
-   - `NODE_ENV`: production
-   - `PORT`: 3000
-   - `MONGODB_URI`: Your MongoDB Atlas connection string
-   - `DB_NAME`: noisesense
-   - `CORS_ORIGIN`: Your Render app URL
-   - `API_URL`: Your Render app URL
-   - `NEXT_PUBLIC_API_URL`: Your Render app URL
-
-4. Set the build command to:
-   ```
-   npm install && cd frontend && npm install && npm run build
-   ```
-
-5. Set the start command to:
-   ```
-   node noisesense/server.js
-   ```
-
-6. Deploy the application
-
-## Local Development
+### Installation
 
 1. Clone the repository
-2. Install dependencies:
-   ```
-   npm install
-   cd frontend && npm install
-   ```
+```bash
+git clone https://github.com/yourusername/noise-sense.git
+cd noise-sense
+```
 
-3. Create a `.env` file in the root directory with the environment variables listed above
+2. Install dependencies
+```bash
+cd frontend
+npm install
+```
 
-4. Start the development server:
-   ```
-   npm run dev
-   ```
+3. Run the development server
+```bash
+npm run dev
+```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## Project Structure
+
+- `frontend/src/app`: Next.js app router pages
+- `frontend/src/components`: Reusable React components
+- `frontend/src/types`: TypeScript type definitions
+- `frontend/public`: Static assets
 
 ## License
 
-MIT 
+This project is licensed under the MIT License - see the LICENSE file for details. 
