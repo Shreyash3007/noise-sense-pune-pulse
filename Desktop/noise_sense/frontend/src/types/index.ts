@@ -3,17 +3,27 @@ export interface Location {
   lng: number;
 }
 
+export type NoiseCategory = 'traffic' | 'construction' | 'event' | 'industrial' | 'other';
+
 export interface NoiseReport {
   id: string;
   location: Location;
   noiseLevel: number;
-  category: string;
-  description: string;
+  category: NoiseCategory;
+  description?: string;
   timestamp: string;
-  status: 'pending' | 'reviewed' | 'resolved';
 }
 
-export type NoiseCategory = 'traffic' | 'construction' | 'event' | 'industrial' | 'other';
+export interface MapProps {
+  location: Location;
+  draggable?: boolean;
+  onMarkerDrag?: (location: Location) => void;
+}
+
+export interface HeatMapProps {
+  data: NoiseReport[];
+  center: Location;
+}
 
 export interface ChartData {
   labels: string[];

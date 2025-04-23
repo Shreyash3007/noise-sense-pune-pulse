@@ -1,12 +1,12 @@
+import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'NoiseSense - Crowdsourced Noise Pollution Monitoring',
-  description: 'Monitor and report noise pollution in your area with NoiseSense. A community-driven platform for noise level measurement and analysis.',
+  title: 'NoiseSense - Measure and Report Noise Pollution',
+  description: 'A platform for measuring and reporting noise pollution in your area',
 }
 
 export default function RootLayout({
@@ -16,9 +16,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
-        {children}
-      </body>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossOrigin=""
+        />
+      </head>
+      <body className={inter.className}>{children}</body>
     </html>
   )
 } 

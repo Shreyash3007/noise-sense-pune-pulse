@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion';
 import Navigation from '@/components/Navigation';
 import dynamic from 'next/dynamic';
@@ -44,7 +44,25 @@ export default function MeasurePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [measurementProgress, setMeasurementProgress] = useState(0);
   const [pulseScale, setPulseScale] = useState(1);
+  const [measurementError, setMeasurementError] = useState<string | null>(null);
+  const [measurementCountdown, setMeasurementCountdown] = useState<number>(10);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [audioPermissionError, setAudioPermissionError] = useState<string | null>(null);
+  const [locationPermissionError, setLocationPermissionError] = useState<string | null>(null);
   
+  // Memoize noise measurement configuration
+  const measurementConfig = useMemo(() => ({
+    duration: 10000,
+    fftSize: 2048,
+    minDb: 0,
+    maxDb: 100,
+  }), []);
+
   // Scroll progress for animations
   const { scrollYProgress } = useScroll();
   const smoothProgress = useSpring(scrollYProgress, { stiffness: 100, damping: 30, restDelta: 0.001 });
@@ -53,12 +71,23 @@ export default function MeasurePage() {
 
   // Initialize audio context and analyzer
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      audioContextRef.current = new AudioContext();
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 2048;
-    }
+    const initializeAudio = async () => {
+      try {
+        if (typeof window !== 'undefined') {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          audioContextRef.current = new AudioContext();
+          analyserRef.current = audioContextRef.current.createAnalyser();
+          analyserRef.current.fftSize = measurementConfig.fftSize;
+        }
+      } catch (error) {
+        console.error('Error initializing audio:', error);
+        setAudioPermissionError('Failed to initialize audio. Please check your browser settings.');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeAudio();
 
     return () => {
       if (audioContextRef.current) {
@@ -68,23 +97,46 @@ export default function MeasurePage() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, []);
+  }, [measurementConfig.fftSize]);
 
-  // Get user location
+  // Get user location with better error handling
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
+    const getLocation = async () => {
+      if (!navigator.geolocation) {
+        setLocationError('Geolocation is not supported by your browser.');
+        setLocationLoading(false);
+        return;
+      }
+
+      setLocationLoading(true);
+      setLocationError(null);
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
           });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-        }
-      );
-    }
+        });
+
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      } catch (error) {
+        console.error('Error getting location:', error);
+        setLocationError(
+          error instanceof GeolocationPositionError
+            ? `Location error: ${error.message}`
+            : 'Unable to get your location. Please enable location services or enter your location manually.'
+        );
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+
+    getLocation();
   }, []);
 
   // Update progress based on current stage
@@ -104,59 +156,90 @@ export default function MeasurePage() {
     }
   }, [measuring]);
 
-  // Start noise measurement
-  const startMeasuring = async () => {
-    if (!audioContextRef.current || !analyserRef.current) return;
+  // Memoize stage content to prevent unnecessary re-renders
+  const stageContent = useMemo(() => {
+    const stageIndex = stages.findIndex(stage => stage.id === currentStage);
+    return {
+      index: stageIndex,
+      progress: (stageIndex / (stages.length - 1)) * 100,
+      isLastStage: stageIndex === stages.length - 1,
+      isFirstStage: stageIndex === 0,
+    };
+  }, [currentStage]);
 
+  // Optimize noise measurement with useCallback
+  const measureNoise = useCallback(() => {
+    if (!audioContextRef.current || !analyserRef.current || !measuring) return;
+
+    const analyser = analyserRef.current;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const startTime = Date.now();
+    
+    const measure = () => {
+      if (!measuring) return;
+      
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+      const db = Math.round(20 * Math.log10(average / 128));
+      
+      setNoiseLevel(Math.max(measurementConfig.minDb, Math.min(measurementConfig.maxDb, db)));
+      
+      const elapsed = Date.now() - startTime;
+      const newProgress = (elapsed / measurementConfig.duration) * 100;
+      setMeasurementProgress(newProgress);
+      
+      // Update countdown
+      const remainingSeconds = Math.ceil((measurementConfig.duration - elapsed) / 1000);
+      setMeasurementCountdown(remainingSeconds);
+      
+      if (elapsed < measurementConfig.duration) {
+        animationFrameRef.current = requestAnimationFrame(measure);
+      } else {
+        setMeasuring(false);
+        setMeasurementCountdown(10);
+      }
+    };
+
+    measure();
+  }, [measuring, measurementConfig]);
+
+  // Handle audio permission request
+  const requestAudioPermission = async () => {
     try {
+      setAudioPermissionError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      const analyser = audioContextRef.current.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-      
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      
-      let startTime = Date.now();
-      const duration = 10000; // 10 seconds
-      
-      const measureNoise = () => {
-        if (!measuring) return;
-        
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-        const db = Math.round(20 * Math.log10(average / 128));
-        
-        setNoiseLevel(Math.max(0, Math.min(100, db)));
-        
-        const elapsed = Date.now() - startTime;
-        const newProgress = (elapsed / duration) * 100;
-        setMeasurementProgress(newProgress);
-        
-        if (elapsed < duration) {
-          requestAnimationFrame(measureNoise);
-        } else {
-          setMeasuring(false);
-          stream.getTracks().forEach(track => track.stop());
-        }
-      };
-      
-      measureNoise();
+      const source = audioContextRef.current!.createMediaStreamSource(stream);
+      source.connect(analyserRef.current!);
+      return stream;
     } catch (error) {
       console.error('Error accessing microphone:', error);
-      setMeasuring(false);
+      setAudioPermissionError('Unable to access microphone. Please ensure you have granted microphone permissions.');
+      throw error;
     }
   };
 
-  const handleMarkerDrag = (newLocation: Location) => {
-    setLocation(newLocation);
-  };
+  // Optimize start measuring with useCallback
+  const startMeasuring = useCallback(async () => {
+    if (!audioContextRef.current || !analyserRef.current) return;
 
-  const handleSubmit = async () => {
+    try {
+      setMeasurementError(null);
+      const stream = await requestAudioPermission();
+      
+      setMeasuring(true);
+      measureNoise();
+    } catch (error) {
+      setMeasuring(false);
+    }
+  }, [measureNoise]);
+
+  // Optimize submit handler with useCallback
+  const handleSubmit = useCallback(async () => {
     if (!location || !selectedCategory) return;
     
     setIsSubmitting(true);
+    setSubmitError(null);
     
     try {
       const response = await fetch('/api/reports', {
@@ -174,10 +257,11 @@ export default function MeasurePage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit report');
+        throw new Error(`Failed to submit report: ${response.statusText}`);
       }
 
       setShowSuccess(true);
+      setRetryCount(0);
       
       // Reset form after 3 seconds
       setTimeout(() => {
@@ -189,9 +273,40 @@ export default function MeasurePage() {
       }, 3000);
     } catch (error) {
       console.error('Error submitting report:', error);
+      setSubmitError(error instanceof Error ? error.message : 'An unexpected error occurred');
+      
+      if (retryCount < MAX_RETRIES) {
+        setRetryCount(prev => prev + 1);
+      }
     } finally {
       setIsSubmitting(false);
     }
+  }, [location, selectedCategory, noiseLevel, description, retryCount]);
+
+  // Cleanup function for audio context
+  useEffect(() => {
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
+  const handleMarkerDrag = (newLocation: Location) => {
+    setLocation(newLocation);
+    setIsMarkerDragging(true);
+  };
+
+  const handleMarkerDragEnd = () => {
+    setIsMarkerDragging(false);
+  };
+
+  const handleRetry = () => {
+    setSubmitError(null);
+    handleSubmit();
   };
 
   const renderStageContent = () => {
@@ -211,31 +326,41 @@ export default function MeasurePage() {
               We need your location to accurately record where the noise pollution is occurring.
               You can drag the marker to adjust your position if needed.
             </p>
-            {location && (
+            {locationError && (
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full h-[400px] rounded-lg overflow-hidden"
+                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg"
               >
-                <Map
-                  location={location}
-                  draggable={true}
-                  onMarkerDrag={(newLocation) => {
-                    setLocation(newLocation);
-                    setIsMarkerDragging(true);
-                  }}
-                />
+                {locationError}
               </motion.div>
             )}
+            <div className="relative h-[400px] rounded-lg overflow-hidden">
+              {locationLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full"
+                  />
+                </div>
+              ) : (
+                <Map
+                  location={location || { lat: 0, lng: 0 }}
+                  draggable={true}
+                  onMarkerDrag={handleMarkerDrag}
+                  onMarkerDragEnd={handleMarkerDragEnd}
+                />
+              )}
+            </div>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="btn-primary w-full"
               onClick={() => setCurrentStage('measure')}
-              disabled={!location}
+              disabled={!location || locationLoading || isMarkerDragging}
             >
-              Confirm Location
+              {isMarkerDragging ? 'Adjusting Location...' : 'Confirm Location'}
             </motion.button>
           </motion.div>
         );
@@ -255,6 +380,15 @@ export default function MeasurePage() {
               We'll use your device's microphone to measure the noise level for 10 seconds.
               Please ensure you're in the area where you want to measure the noise.
             </p>
+            {measurementError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg"
+              >
+                {measurementError}
+              </motion.div>
+            )}
             <div className="relative h-64">
               <svg
                 className="w-full h-full"
@@ -301,6 +435,15 @@ export default function MeasurePage() {
                     {noiseLevel}
                   </motion.span>
                   <span className="text-xl text-gray-600 dark:text-gray-300">dB</span>
+                  {measuring && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="mt-2 text-sm text-gray-500 dark:text-gray-400"
+                    >
+                      {measurementCountdown} seconds remaining
+                    </motion.div>
+                  )}
                 </div>
               </div>
             </div>
@@ -452,6 +595,56 @@ export default function MeasurePage() {
       <Navigation />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Loading State */}
+        {isInitializing && (
+          <div className="fixed inset-0 bg-white dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 flex items-center justify-center z-50">
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="mt-4 text-gray-600 dark:text-gray-300">Initializing...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Permission Errors */}
+        {(audioPermissionError || locationPermissionError) && (
+          <div className="mb-8 space-y-4">
+            {audioPermissionError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg"
+              >
+                <div className="flex items-center justify-between">
+                  <span>{audioPermissionError}</span>
+                  <button
+                    onClick={() => setAudioPermissionError(null)}
+                    className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </motion.div>
+            )}
+            {locationPermissionError && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg"
+              >
+                <div className="flex items-center justify-between">
+                  <span>{locationPermissionError}</span>
+                  <button
+                    onClick={() => setLocationPermissionError(null)}
+                    className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        )}
+
         <div className="text-center mb-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
