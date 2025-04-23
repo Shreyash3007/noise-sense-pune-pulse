@@ -36,7 +36,7 @@ const NoiseLevelsMap = () => {
       import("mapbox-gl/dist/mapbox-gl.css");
 
       // Initialize map
-      mapboxgl.accessToken = "YOUR_MAPBOX_TOKEN"; // We'll need to get this from environment variables
+      mapboxgl.accessToken = "pk.eyJ1Ijoic2hyZXlhc2gwNDU1MyIsImEiOiJjbTl1MzBiYzUwNHF5MmizYWIwNGtxcWd3In0.PulE0Yanu2kaNNYPGEgnlw";
       
       const map = new mapboxgl.Map({
         container: "map",
@@ -83,6 +83,34 @@ const NoiseLevelsMap = () => {
             ],
             "circle-opacity": 0.8
           }
+        });
+
+        // Add popup on click
+        map.on('click', 'noise-points', (e) => {
+          if (!e.features || e.features.length === 0) return;
+          
+          const feature = e.features[0];
+          const properties = feature.properties;
+          
+          new mapboxgl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(`
+              <div class="text-sm">
+                <strong>Noise Level:</strong> ${properties?.decibel_level} dB<br>
+                <strong>Noise Type:</strong> ${properties?.noise_type}<br>
+                <strong>Recorded:</strong> ${new Date(properties?.created_at as string).toLocaleString()}
+              </div>
+            `)
+            .addTo(map);
+        });
+
+        // Change cursor to pointer when hovering over noise points
+        map.on('mouseenter', 'noise-points', () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        
+        map.on('mouseleave', 'noise-points', () => {
+          map.getCanvas().style.cursor = '';
         });
       });
 
