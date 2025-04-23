@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <!-- Character set and viewport -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO meta tags -->
+    <meta name="description" content="Page not found - NoiseSense">
+    <meta name="robots" content="noindex, follow">
+    <title>404 - Page Not Found | NoiseSense</title>
+    
+    <!-- Favicons -->
+    <link rel="icon" href="assets/images/favicon.ico">
+    <link rel="icon" href="assets/images/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        /* 404 Page Specific Styles */
+        .error-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .error-code {
+            font-size: clamp(4rem, 15vw, 10rem);
+            font-weight: 900;
+            color: var(--color-accent);
+            line-height: 1;
+            margin-bottom: 1rem;
+            opacity: 0.7;
+        }
+        
+        .error-title {
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+            margin-bottom: 1.5rem;
+        }
+        
+        .error-message {
+            font-size: 1.25rem;
+            color: var(--color-text-secondary);
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+        
+        .error-actions {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .error-animation {
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle Button -->
+    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark/light mode" aria-pressed="false">
+        <span aria-hidden="true" class="light-icon">🌙</span>
+        <span aria-hidden="true" class="dark-icon">☀️</span>
+        <span class="sr-only">Switch to dark mode</span>
+    </button>
+
+    <!-- Header & Navigation -->
+    <header role="banner" class="site-header">
+        <div class="container">
+            <div class="logo-container">
+                <a href="/" class="logo" aria-label="NoiseSense Home">
+                    <h2>NoiseSense</h2>
+                </a>
+            </div>
+            
+            <nav id="main-nav" class="main-nav" role="navigation">
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="/" class="nav-link">Home</a></li>
+                    <li class="nav-item"><a href="/measure" class="nav-link">Measure</a></li>
+                    <li class="nav-item"><a href="/about" class="nav-link">About</a></li>
+                    <li class="nav-item"><a href="/contact" class="nav-link">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main role="main">
+        <section class="error-page">
+            <div class="error-animation">
+                <!-- Simple animated SVG or emoji -->
+                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <style>
+                        .ear {
+                            animation: wiggle 1.5s infinite ease-in-out alternate;
+                            transform-origin: bottom center;
+                        }
+                        @keyframes wiggle {
+                            0% { transform: rotate(-5deg); }
+                            100% { transform: rotate(5deg); }
+                        }
+                    </style>
+                    <circle cx="100" cy="100" r="90" fill="var(--color-bg-secondary)" />
+                    <circle cx="100" cy="130" r="50" fill="var(--color-accent)" opacity="0.7" />
+                    <circle class="ear" cx="50" cy="60" r="20" fill="var(--color-accent)" opacity="0.9" />
+                    <circle class="ear" cx="150" cy="60" r="20" fill="var(--color-accent)" opacity="0.9" />
+                    <circle cx="75" cy="90" r="10" fill="white" />
+                    <circle cx="125" cy="90" r="10" fill="white" />
+                    <circle cx="75" cy="90" r="5" fill="black" />
+                    <circle cx="125" cy="90" r="5" fill="black" />
+                    <path d="M80 120 Q100 140 120 120" stroke="white" stroke-width="4" fill="none" />
+                </svg>
+            </div>
+            
+            <h1 class="error-code">404</h1>
+            <h2 class="error-title">Oops, this page doesn't exist</h2>
+            <p class="error-message">
+                The page you're looking for might have been moved, deleted, or never existed.
+                Let's help you find your way back.
+            </p>
+            
+            <div class="error-actions">
+                <a href="/" class="btn btn-primary">Back to Home</a>
+                <a href="/contact" class="btn">Contact Support</a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer role="contentinfo" class="site-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <h3>NoiseSense</h3>
+                    <p class="footer-tagline">Track Noise. Protect Health.</p>
+                </div>
+                
+                <div class="footer-links">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/measure">Measure</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/privacy">Privacy Policy</a></li>
+                        <li><a href="/terms">Terms of Use</a></li>
+                        <li><a href="/accessibility">Accessibility</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-social">
+                    <h4>Connect</h4>
+                    <div class="social-icons">
+                        <a href="https://github.com/noisesense" target="_blank" rel="noopener" aria-label="GitHub Repository"><span aria-hidden="true">GitHub</span></a>
+                        <a href="https://twitter.com/noisesense" target="_blank" rel="noopener" aria-label="Follow us on Twitter"><span aria-hidden="true">𝕏</span></a>
+                        <a href="https://instagram.com/noisesense" target="_blank" rel="noopener" aria-label="Follow us on Instagram"><span aria-hidden="true">📸</span></a>
+                        <a href="https://linkedin.com/company/noisesense" target="_blank" rel="noopener" aria-label="Follow us on LinkedIn"><span aria-hidden="true">💼</span></a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <div class="footer-copyright">
+                    <p>&copy; <span id="current-year">2025</span> NoiseSense. All rights reserved.</p>
+                </div>
+                
+                <div class="footer-credits">
+                    <p>Made with ❤️ for healthier communities</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Simple Theme Toggle Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeToggle = document.getElementById('theme-toggle');
+            const htmlElement = document.documentElement;
+            
+            // Check for saved preference
+            const savedTheme = localStorage.getItem('noisesense-theme');
+            if (savedTheme) {
+                htmlElement.setAttribute('data-theme', savedTheme);
+                themeToggle.setAttribute('aria-pressed', savedTheme === 'dark');
+            }
+            
+            // Toggle theme on click
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = htmlElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                
+                htmlElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('noisesense-theme', newTheme);
+                themeToggle.setAttribute('aria-pressed', newTheme === 'dark');
+            });
+            
+            // Update year
+            document.getElementById('current-year').textContent = new Date().getFullYear();
+        });
+    </script>
+</body>
+</html> 

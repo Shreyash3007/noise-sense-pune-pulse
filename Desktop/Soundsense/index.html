@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <!-- Character set and viewport -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO meta tags -->
+    <meta name="description" content="NoiseSense - Track noise pollution in your area and protect your health">
+    <meta name="keywords" content="noise pollution, sound monitoring, environmental health, noise mapping">
+    <meta name="author" content="NoiseSense Team">
+    <meta name="robots" content="index, follow">
+    <title>NoiseSense | Track Noise. Protect Health.</title>
+    
+    <!-- Favicons -->
+    <link rel="icon" href="assets/images/favicon.ico">
+    <link rel="icon" href="assets/images/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/images/apple-touch-icon.png">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="NoiseSense | Track Noise. Protect Health.">
+    <meta property="og:description" content="Crowdsourced noise‑pollution mapping to keep your community healthy.">
+    <meta property="og:image" content="assets/images/og-image.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://noisesense.example.com">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:creator" content="@noisesense">
+    
+    <!-- Performance optimizations -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preload" href="css/style.css" as="style">
+    <link rel="preload" href="assets/lottie/phone-mockup.json" as="fetch" type="application/json" crossorigin>
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/noiseMeter.css">
+    <link rel="stylesheet" href="css/landing.css">
+    
+    <!-- Loader Style -->
+    <style>
+        /* Page Loader */
+        .page-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--color-bg-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        .loader {
+            display: inline-block;
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        
+        .loader div {
+            position: absolute;
+            top: 33px;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--color-accent);
+            animation-timing-function: cubic-bezier(0, 1, 1, 0);
+        }
+        
+        .loader div:nth-child(1) {
+            left: 8px;
+            animation: loader1 0.6s infinite;
+        }
+        
+        .loader div:nth-child(2) {
+            left: 8px;
+            animation: loader2 0.6s infinite;
+        }
+        
+        .loader div:nth-child(3) {
+            left: 32px;
+            animation: loader2 0.6s infinite;
+        }
+        
+        .loader div:nth-child(4) {
+            left: 56px;
+            animation: loader3 0.6s infinite;
+        }
+        
+        @keyframes loader1 {
+            0% {
+                transform: scale(0);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes loader2 {
+            0% {
+                transform: translate(0, 0);
+            }
+            100% {
+                transform: translate(24px, 0);
+            }
+        }
+        
+        @keyframes loader3 {
+            0% {
+                transform: scale(1);
+            }
+            100% {
+                transform: scale(0);
+            }
+        }
+        
+        .page-loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+    
+    <!-- Third-party scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js" defer></script>
+    
+    <!-- Local scripts -->
+    <script src="js/main.js" defer></script>
+    <script src="js/animations.js"></script>
+    <script src="js/noiseMeter.js" type="module"></script>
+    
+    <!-- Fonts -->
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Page Loader -->
+    <div class="page-loader">
+        <div class="loader">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+    </div>
+    
+    <!-- Skip navigation for accessibility -->
+    <a href="#home" class="skip-to-content">Skip to main content</a>
+    
+    <!-- Theme Toggle Button -->
+    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark/light mode" aria-pressed="false">
+        <span aria-hidden="true" class="light-icon">🌙</span>
+        <span aria-hidden="true" class="dark-icon">☀️</span>
+        <span class="sr-only">Switch to dark mode</span>
+        <!-- JS will toggle aria-pressed and update sr-only text based on current theme -->
+    </button>
+
+    <!-- AI Chat Icon -->
+    <button id="ai-chat-toggle" class="ai-chat-toggle" aria-label="Open AI assistant">
+        <span aria-hidden="true" class="chat-icon">💬</span>
+        <span class="sr-only">Chat with our AI assistant</span>
+        <!-- JS will handle opening chat interface on click -->
+    </button>
+
+    <!-- No JavaScript Warning -->
+    <noscript>
+        <div class="noscript-warning">
+            <div class="container">
+                <p>This site requires JavaScript to function properly. Please enable JavaScript in your browser settings.</p>
+            </div>
+        </div>
+    </noscript>
+
+    <!-- Header & Navigation -->
+    <header role="banner" class="site-header">
+        <div class="container">
+            <div class="logo-container">
+                <a href="#" class="logo" aria-label="NoiseSense Home">
+                    <h2>NoiseSense</h2>
+                </a>
+            </div>
+            
+            <nav id="main-nav" class="main-nav" role="navigation">
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="#home" class="nav-link active" aria-current="page">Home</a></li>
+                    <li class="nav-item"><a href="#measure" class="nav-link">Measure</a></li>
+                    <li class="nav-item"><a href="#about" class="nav-link">About</a></li>
+                    <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content (hero + teaser) -->
+    <main role="main">
+        <!-- Hero Section -->
+        <section id="home" class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1 class="hero-title">Track Noise. Protect Health.</h1>
+                    <p class="hero-subtitle">
+                        Join our community-driven initiative to map and monitor noise pollution in your area.
+                        Contribute data, discover insights, and take action for a healthier environment.
+                    </p>
+                    <a href="#measure" class="btn btn-primary cta-button">Start Measuring</a>
+                </div>
+                
+                <div class="hero-visual">
+                    <!-- Container for Lottie animation that will be scroll-triggered -->
+                    <div id="timeline-lottie" class="phone-mockup-container">
+                        <!-- Lottie animation will be injected here via JavaScript -->
+                        <!-- ScrollTrigger will control animation playback based on scroll position -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Teaser Section -->
+        <section id="measure-teaser" class="measure-teaser">
+            <div class="container">
+                <h2 class="section-title">How It Works</h2>
+                <p class="section-subtitle">Scroll down to discover how easy it is to contribute to noise monitoring in your community</p>
+                
+                <!-- Steps container for the process -->
+                <div class="steps-container">
+                    <div class="step-item">
+                        <div class="step-icon">1</div>
+                        <h3 class="step-title">Detect</h3>
+                        <p class="step-description">Use your device to measure and record noise levels in your surroundings.</p>
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-icon">2</div>
+                        <h3 class="step-title">Analyze</h3>
+                        <p class="step-description">Our system processes the data and identifies patterns and sources.</p>
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-icon">3</div>
+                        <h3 class="step-title">Act</h3>
+                        <p class="step-description">Get recommendations and contribute to community noise reduction solutions.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Example of Optimized Image Section -->
+        <section class="image-showcase">
+            <div class="container">
+                <h2 class="section-title">See NoiseSense in Action</h2>
+                <div class="optimized-image-container">
+                    <picture>
+                        <source 
+                            srcset="assets/images/showcase-small.webp 400w,
+                                    assets/images/showcase-medium.webp 800w,
+                                    assets/images/showcase-large.webp 1200w"
+                            sizes="(max-width: 600px) 400px,
+                                   (max-width: 1200px) 800px,
+                                   1200px"
+                            type="image/webp">
+                        <source 
+                            srcset="assets/images/showcase-small.png 400w,
+                                    assets/images/showcase-medium.png 800w,
+                                    assets/images/showcase-large.png 1200w"
+                            sizes="(max-width: 600px) 400px,
+                                   (max-width: 1200px) 800px,
+                                   1200px"
+                            type="image/png">
+                        <img src="assets/images/showcase-medium.png" 
+                             alt="NoiseSense app demonstration showing noise level readings"
+                             width="800" 
+                             height="450"
+                             loading="lazy"
+                             class="showcase-image">
+                    </picture>
+                    <p class="image-caption">Real-time noise monitoring across urban environments</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer role="contentinfo" class="site-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <h3>NoiseSense</h3>
+                    <p class="footer-tagline">Track Noise. Protect Health.</p>
+                </div>
+                
+                <div class="footer-links">
+                    <h4>Navigation</h4>
+                    <ul>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/about">About</a></li>
+                        <li><a href="/measure">Measure</a></li>
+                        <li><a href="/contact">Contact</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-links">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="/privacy">Privacy Policy</a></li>
+                        <li><a href="/terms">Terms of Use</a></li>
+                        <li><a href="/accessibility">Accessibility</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-social">
+                    <h4>Connect</h4>
+                    <div class="social-icons">
+                        <a href="https://github.com/noisesense" target="_blank" rel="noopener" aria-label="GitHub Repository"><span aria-hidden="true">GitHub</span></a>
+                        <a href="https://twitter.com/noisesense" target="_blank" rel="noopener" aria-label="Follow us on Twitter"><span aria-hidden="true">𝕏</span></a>
+                        <a href="https://instagram.com/noisesense" target="_blank" rel="noopener" aria-label="Follow us on Instagram"><span aria-hidden="true">📸</span></a>
+                        <a href="https://linkedin.com/company/noisesense" target="_blank" rel="noopener" aria-label="Follow us on LinkedIn"><span aria-hidden="true">💼</span></a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <div class="footer-copyright">
+                    <p>&copy; <span id="current-year">2025</span> NoiseSense. All rights reserved.</p>
+                </div>
+                
+                <div class="footer-credits">
+                    <p>Made with ❤️ for healthier communities</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Loader Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Page loader
+            const loader = document.querySelector('.page-loader');
+            
+            // Hide loader after 2 seconds
+            setTimeout(function() {
+                loader.classList.add('hidden');
+                
+                // Remove from DOM after fade out
+                setTimeout(function() {
+                    loader.style.display = 'none';
+                }, 500);
+            }, 2000);
+        });
+    </script>
+    
+    <!-- Theme Variables (CSS Custom Properties) are defined in style.css -->
+    <!-- JS hooks will bind to DOM elements for ScrollTrigger, Lottie animations, theme toggle, and chat functionality -->
+    
+    <!-- Add before closing </body> -->
+    <script src="js/particles.js"></script>
+    <script src="js/measure.js"></script>
+    <script src="js/animations.js"></script>
+</body>
+</html> 

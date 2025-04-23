@@ -1,0 +1,297 @@
+/* NoiseSense - Advanced Noise Meter Styles */
+
+.noise-meter {
+  --meter-height: 300px;
+  --meter-width: 60px;
+  --level: 0%;
+  --glow-color: var(--color-success);
+  --meter-bg: var(--glass-bg, rgba(255, 255, 255, 0.1));
+  --meter-border: var(--glass-border, rgba(255, 255, 255, 0.2));
+  --meter-shadow: var(--glass-shadow, 0 8px 32px 0 rgba(31, 38, 135, 0.37));
+  
+  position: relative;
+  width: var(--meter-width);
+  height: var(--meter-height);
+  background: var(--meter-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--meter-border);
+  border-radius: 30px;
+  padding: 5px;
+  box-shadow: var(--meter-shadow);
+  margin: 2rem auto;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.meter-bar {
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  right: 5px;
+  height: calc(var(--level) * (var(--meter-height) - 10px) / 100);
+  background: linear-gradient(to top,
+    var(--color-success) 0%,
+    var(--color-success) 30%,
+    var(--color-warning) 30%,
+    var(--color-warning) 70%,
+    var(--color-danger) 70%,
+    var(--color-danger) 100%
+  );
+  border-radius: 25px;
+  transition: height 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 20px var(--glow-color);
+}
+
+.meter-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  border-radius: inherit;
+  animation: barShine 2s linear infinite;
+}
+
+.meter-value {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--color-text-primary);
+  text-shadow: 0 2px 10px var(--color-shadow);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.meter-value::after {
+  content: 'dB';
+  font-size: 0.8em;
+  margin-left: 4px;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.meter-scale {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  right: -40px;
+  width: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.scale-mark {
+  position: relative;
+  padding-left: 15px;
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.scale-mark::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.scale-mark.active {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+.scale-mark.active::before {
+  transform: scaleX(1);
+}
+
+/* Meter States with Enhanced Effects */
+.meter-low .meter-bar {
+  --glow-color: var(--color-success);
+  background: var(--color-success);
+  animation: pulseLow 2s ease-in-out infinite;
+}
+
+.meter-medium .meter-bar {
+  --glow-color: var(--color-warning);
+  background: var(--color-warning);
+  animation: pulseMedium 1.5s ease-in-out infinite;
+}
+
+.meter-high .meter-bar {
+  --glow-color: var(--color-danger);
+  background: var(--color-danger);
+  animation: pulseHigh 1s ease-in-out infinite;
+}
+
+/* Modern Controls */
+.meter-controls {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.meter-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  border: none;
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.meter-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.meter-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--meter-shadow);
+}
+
+.meter-button:hover::before {
+  transform: translateX(100%);
+}
+
+.meter-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.meter-button.stop {
+  background: var(--color-danger);
+  color: white;
+}
+
+/* Error Message with Glass Effect */
+.error-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  color: var(--color-danger);
+  padding: 1.5rem;
+  border-radius: 12px;
+  text-align: center;
+  width: max-content;
+  max-width: 250px;
+  font-size: 0.875rem;
+  box-shadow: var(--meter-shadow);
+  animation: errorAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Enhanced Animations */
+@keyframes pulseLow {
+  0% { box-shadow: 0 0 10px var(--glow-color); }
+  50% { box-shadow: 0 0 20px var(--glow-color); }
+  100% { box-shadow: 0 0 10px var(--glow-color); }
+}
+
+@keyframes pulseMedium {
+  0% { box-shadow: 0 0 15px var(--glow-color); }
+  50% { box-shadow: 0 0 30px var(--glow-color); }
+  100% { box-shadow: 0 0 15px var(--glow-color); }
+}
+
+@keyframes pulseHigh {
+  0% { box-shadow: 0 0 20px var(--glow-color); opacity: 1; }
+  50% { box-shadow: 0 0 40px var(--glow-color); opacity: 0.8; }
+  100% { box-shadow: 0 0 20px var(--glow-color); opacity: 1; }
+}
+
+@keyframes barShine {
+  0% { transform: translateY(100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+
+@keyframes errorAppear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -40%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Responsive Design with Enhanced Mobile Experience */
+@media (max-width: 768px) {
+  .noise-meter {
+    --meter-height: 200px;
+    --meter-width: 40px;
+  }
+  
+  .meter-value {
+    font-size: 1.5rem;
+    top: -45px;
+  }
+  
+  .meter-scale {
+    right: -35px;
+    font-size: 0.7rem;
+  }
+  
+  .meter-controls {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+    max-width: 200px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  
+  .meter-button {
+    width: 100%;
+  }
+}
+
+/* Dark Mode Optimizations */
+[data-theme="dark"] .noise-meter {
+  --meter-bg: rgba(0, 0, 0, 0.2);
+  --meter-border: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .meter-button {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .error-message {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.1);
+} 
