@@ -1,8 +1,9 @@
-
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
 interface NoiseReport {
   id: string;
@@ -31,12 +32,17 @@ const NoiseLevelsMap = () => {
     const loadMap = async () => {
       if (!reports || reports.length === 0) return;
       
-      // Load Mapbox GL JS
-      const mapboxgl = (await import("mapbox-gl")).default;
-      import("mapbox-gl/dist/mapbox-gl.css");
+      // Fetch Mapbox token from Supabase secrets
+      const { data: { publicData } } = await supabase.rpc('get_secret', { 
+        secret_name: 'MAPBOX_ACCESS_TOKEN' 
+      });
 
-      // Initialize map
-      mapboxgl.accessToken = "pk.eyJ1Ijoic2hyZXlhc2gwNDU1MyIsImEiOiJjbTl1MzBiYzUwNHF5MmizYWIwNGtxcWd3In0.PulE0Yanu2kaNNYPGEgnlw";
+      if (!publicData) {
+        console.error('Mapbox access token not found');
+        return;
+      }
+
+      mapboxgl.accessToken = publicData;
       
       const map = new mapboxgl.Map({
         container: "map",
