@@ -1,0 +1,24 @@
+services:
+  # Backend API service
+  - type: web
+    name: noisesense-api
+    env: node
+    buildCommand: npm install && cd frontend && npm install && npm run build
+    startCommand: node noisesense/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: MONGODB_URI
+        sync: false
+      - key: DB_NAME
+        value: noisesense
+      - key: CORS_ORIGIN
+        value: https://noisesense.onrender.com
+      - key: API_URL
+        value: https://noisesense.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        value: https://noisesense.onrender.com
+    healthCheckPath: /api/health
+    autoDeploy: true 
