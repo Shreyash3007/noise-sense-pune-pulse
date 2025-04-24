@@ -12,19 +12,18 @@ serve(async (req) => {
   // Parse the request body
   const { secret_name } = await req.json()
 
-  // Fetch the secret
-  const { data, error } = await supabase.rpc('get_secret', { 
-    secret_name 
-  })
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { 'Content-Type': 'application/json' },
-      status: 400
-    })
+  // Get the secret value directly from environment variables
+  const secretValue = Deno.env.get(secret_name)
+  
+  if (!secretValue) {
+    return new Response(
+      JSON.stringify({ error: 'Secret not found' }), 
+      { headers: { 'Content-Type': 'application/json' }, status: 404 }
+    )
   }
 
-  return new Response(JSON.stringify({ publicData: data }), {
-    headers: { 'Content-Type': 'application/json' },
-  })
+  return new Response(
+    JSON.stringify({ data: secretValue }), 
+    { headers: { 'Content-Type': 'application/json' } }
+  )
 })

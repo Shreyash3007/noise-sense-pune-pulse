@@ -32,95 +32,95 @@ const NoiseLevelsMap = () => {
     const loadMap = async () => {
       if (!reports || reports.length === 0) return;
       
-      // Fetch Mapbox token from Supabase secrets
-      const { data: { publicData } } = await supabase.rpc('get_secret', { 
-        secret_name: 'MAPBOX_ACCESS_TOKEN' 
-      });
-
-      if (!publicData) {
-        console.error('Mapbox access token not found');
-        return;
-      }
-
-      mapboxgl.accessToken = publicData;
-      
-      const map = new mapboxgl.Map({
-        container: "map",
-        style: "mapbox://styles/mapbox/light-v11",
-        center: [73.8567, 18.5204], // Pune coordinates
-        zoom: 11
-      });
-
-      // Add reports to map
-      map.on("load", () => {
-        map.addSource("noise-reports", {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: reports.map(report => ({
-              type: "Feature",
-              geometry: {
-                type: "Point",
-                coordinates: [report.longitude, report.latitude]
-              },
-              properties: {
-                id: report.id,
-                decibel_level: report.decibel_level,
-                noise_type: report.noise_type,
-                created_at: report.created_at
-              }
-            }))
-          }
+      try {
+        const { data, error } = await supabase.functions.invoke('get_secret', {
+          body: { secret_name: 'MAPBOX_ACCESS_TOKEN' }
         });
 
-        map.addLayer({
-          id: "noise-points",
-          type: "circle",
-          source: "noise-reports",
-          paint: {
-            "circle-radius": 8,
-            "circle-color": [
-              "interpolate",
-              ["linear"],
-              ["get", "decibel_level"],
-              40, "#00ff00",
-              60, "#ffff00",
-              80, "#ff0000"
-            ],
-            "circle-opacity": 0.8
-          }
-        });
+        if (error || !data?.data) {
+          console.error('Error fetching Mapbox token:', error || 'No token found');
+          return;
+        }
 
-        // Add popup on click
-        map.on('click', 'noise-points', (e) => {
-          if (!e.features || e.features.length === 0) return;
-          
-          const feature = e.features[0];
-          const properties = feature.properties;
-          
-          new mapboxgl.Popup()
-            .setLngLat(e.lngLat)
-            .setHTML(`
-              <div class="text-sm">
-                <strong>Noise Level:</strong> ${properties?.decibel_level} dB<br>
-                <strong>Noise Type:</strong> ${properties?.noise_type}<br>
-                <strong>Recorded:</strong> ${new Date(properties?.created_at as string).toLocaleString()}
-              </div>
-            `)
-            .addTo(map);
-        });
-
-        // Change cursor to pointer when hovering over noise points
-        map.on('mouseenter', 'noise-points', () => {
-          map.getCanvas().style.cursor = 'pointer';
-        });
+        mapboxgl.accessToken = data.data;
         
-        map.on('mouseleave', 'noise-points', () => {
-          map.getCanvas().style.cursor = '';
+        const map = new mapboxgl.Map({
+          container: "map",
+          style: "mapbox://styles/mapbox/light-v11",
+          center: [73.8567, 18.5204], // Pune coordinates
+          zoom: 11
         });
-      });
 
-      return () => map.remove();
+        map.on("load", () => {
+          map.addSource("noise-reports", {
+            type: "geojson",
+            data: {
+              type: "FeatureCollection",
+              features: reports.map(report => ({
+                type: "Feature",
+                geometry: {
+                  type: "Point",
+                  coordinates: [report.longitude, report.latitude]
+                },
+                properties: {
+                  id: report.id,
+                  decibel_level: report.decibel_level,
+                  noise_type: report.noise_type,
+                  created_at: report.created_at
+                }
+              }))
+            }
+          });
+
+          map.addLayer({
+            id: "noise-points",
+            type: "circle",
+            source: "noise-reports",
+            paint: {
+              "circle-radius": 8,
+              "circle-color": [
+                "interpolate",
+                ["linear"],
+                ["get", "decibel_level"],
+                40, "#00ff00",
+                60, "#ffff00",
+                80, "#ff0000"
+              ],
+              "circle-opacity": 0.8
+            }
+          });
+
+          map.on('click', 'noise-points', (e) => {
+            if (!e.features || e.features.length === 0) return;
+            
+            const feature = e.features[0];
+            const properties = feature.properties;
+            
+            new mapboxgl.Popup()
+              .setLngLat(e.lngLat)
+              .setHTML(`
+                <div class="text-sm">
+                  <strong>Noise Level:</strong> ${properties?.decibel_level} dB<br>
+                  <strong>Noise Type:</strong> ${properties?.noise_type}<br>
+                  <strong>Recorded:</strong> ${new Date(properties?.created_at as string).toLocaleString()}
+                </div>
+              `)
+              .addTo(map);
+          });
+
+          map.on('mouseenter', 'noise-points', () => {
+            map.getCanvas().style.cursor = 'pointer';
+          });
+          
+          map.on('mouseleave', 'noise-points', () => {
+            map.getCanvas().style.cursor = '';
+          });
+        });
+
+        return () => map.remove();
+      } catch (err) {
+        console.error('Error initializing map:', err);
+      }
     };
 
     loadMap();
