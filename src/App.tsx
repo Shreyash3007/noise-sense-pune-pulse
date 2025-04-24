@@ -10,6 +10,7 @@ import Map from "./pages/Map";
 import About from "./pages/About";
 import AdminPortal from "./pages/AdminPortal";
 import NotFound from "./pages/NotFound";
+import { ThemeProvider } from "./components/ThemeProvider";
 
 // Add custom CSS for animations
 import "./App.css";
@@ -26,21 +27,23 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <MainLayout>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/map" element={<Map />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/admin" element={<AdminPortal />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </MainLayout>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider defaultTheme="light" storageKey="noise-sense-theme">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <MainLayout>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/map" element={<Map />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/admin" element={<AdminPortal />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </MainLayout>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

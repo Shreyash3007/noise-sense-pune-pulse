@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +19,8 @@ interface NoiseReport {
 }
 
 // Define the GeoJSON feature type for proper typing
-interface NoiseFeature extends GeoJSON.Feature {
+interface NoiseFeature {
+  type: "Feature";
   geometry: {
     type: "Point";
     coordinates: [number, number];
@@ -34,7 +34,8 @@ interface NoiseFeature extends GeoJSON.Feature {
   };
 }
 
-interface NoiseGeoJSON extends GeoJSON.FeatureCollection {
+interface NoiseGeoJSON {
+  type: "FeatureCollection";
   features: NoiseFeature[];
 }
 
@@ -258,8 +259,11 @@ const NoiseLevelsMap = () => {
           map.current.on('click', 'noise-points', (e) => {
             if (!e.features || e.features.length === 0 || !map.current) return;
             
-            const feature = e.features[0] as NoiseFeature;
-            const coordinates = feature.geometry.coordinates.slice() as [number, number];
+            // Safely cast the feature and extract coordinates
+            const feature = e.features[0] as unknown as NoiseFeature;
+            if (!feature.geometry || !feature.geometry.coordinates) return;
+            
+            const coordinates = feature.geometry.coordinates.slice();
             const properties = feature.properties;
             
             // Find the report that was clicked
@@ -337,8 +341,9 @@ const NoiseLevelsMap = () => {
         }))
       };
       
-      // Update the source data
-      source.setData(geojsonData);
+      // Update the source data with type assertion for the setData method
+      const sourceWithSetData = source as mapboxgl.GeoJSONSource;
+      sourceWithSetData.setData(geojsonData);
     }
   }, [reports, map.current]);
 
