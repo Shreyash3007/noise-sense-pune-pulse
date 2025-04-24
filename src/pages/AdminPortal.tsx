@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Lock, User, BarChart2, Map, Calendar, FileDown, Loader2, Filter, Download, RefreshCw, AlertTriangle, Info } from "lucide-react";
+import { Lock, User, BarChart2, Map, Calendar, FileDown, Loader2, Filter, Download, RefreshCw, AlertTriangle, Info, Volume2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import NoiseLevelsMap from "@/components/NoiseLevelsMap";
 import { useNavigate } from "react-router-dom";

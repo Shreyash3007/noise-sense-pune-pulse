@@ -19,6 +19,25 @@ interface NoiseReport {
   notes?: string;
 }
 
+// Define the GeoJSON feature type for proper typing
+interface NoiseFeature extends GeoJSON.Feature {
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+  properties: {
+    id: string;
+    decibel_level: number;
+    noise_type: string;
+    created_at: string;
+    notes: string;
+  };
+}
+
+interface NoiseGeoJSON extends GeoJSON.FeatureCollection {
+  features: NoiseFeature[];
+}
+
 const NoiseLevelsMap = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -119,26 +138,29 @@ const NoiseLevelsMap = () => {
             }
           });
           
+          // Create GeoJSON data from reports
+          const geojsonData: NoiseGeoJSON = {
+            type: "FeatureCollection",
+            features: reports.map(report => ({
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [report.longitude, report.latitude]
+              },
+              properties: {
+                id: report.id,
+                decibel_level: report.decibel_level,
+                noise_type: report.noise_type,
+                created_at: report.created_at,
+                notes: report.notes || ""
+              }
+            }))
+          };
+          
           // Add noise data layer
           map.current.addSource("noise-reports", {
             type: "geojson",
-            data: {
-              type: "FeatureCollection",
-              features: reports.map(report => ({
-                type: "Feature",
-                geometry: {
-                  type: "Point",
-                  coordinates: [report.longitude, report.latitude]
-                },
-                properties: {
-                  id: report.id,
-                  decibel_level: report.decibel_level,
-                  noise_type: report.noise_type,
-                  created_at: report.created_at,
-                  notes: report.notes || ""
-                }
-              }))
-            }
+            data: geojsonData
           });
 
           // Add heatmap layer
@@ -236,7 +258,7 @@ const NoiseLevelsMap = () => {
           map.current.on('click', 'noise-points', (e) => {
             if (!e.features || e.features.length === 0 || !map.current) return;
             
-            const feature = e.features[0];
+            const feature = e.features[0] as NoiseFeature;
             const coordinates = feature.geometry.coordinates.slice() as [number, number];
             const properties = feature.properties;
             
@@ -294,8 +316,10 @@ const NoiseLevelsMap = () => {
   useEffect(() => {
     if (!map.current || !reports || !map.current.isStyleLoaded()) return;
     
-    if (map.current.getSource('noise-reports')) {
-      map.current.getSource('noise-reports').setData({
+    const source = map.current.getSource('noise-reports');
+    if (source && 'setData' in source) {
+      // Create GeoJSON data from filtered reports
+      const geojsonData: NoiseGeoJSON = {
         type: "FeatureCollection",
         features: reports.map(report => ({
           type: "Feature",
@@ -311,7 +335,10 @@ const NoiseLevelsMap = () => {
             notes: report.notes || ""
           }
         }))
-      });
+      };
+      
+      // Update the source data
+      source.setData(geojsonData);
     }
   }, [reports, map.current]);
 
