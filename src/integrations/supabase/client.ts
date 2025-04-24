@@ -2,10 +2,34 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://obolgajchkvvpvkxyoya.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ib2xnYWpjaGt2dnB2a3h5b3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0MjA3NzAsImV4cCI6MjA2MDk5Njc3MH0.wAPBgM1FNfw1J0GRawXZDOhlI6orGsR1gK50FnA9xLw";
+// In production, these should come from environment variables
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://obolgajchkvvpvkxyoya.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ib2xnYWpjaGt2dnB2a3h5b3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0MjA3NzAsImV4cCI6MjA2MDk5Njc3MH0.wAPBgM1FNfw1J0GRawXZDOhlI6orGsR1gK50FnA9xLw";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Initialize the Supabase client with error handling
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
+
+// Helper function to check database connection
+export const checkDatabaseConnection = async () => {
+  try {
+    const { data, error } = await supabase.from('noise_reports').select('id').limit(1);
+    
+    if (error) {
+      console.error('Database connection error:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Failed to connect to Supabase:', err);
+    return false;
+  }
+};

@@ -1,0 +1,318 @@
+/* Theme transition styles */
+:root {
+  --theme-transition-duration: 300ms;
+  --theme-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --theme-scale-duration: 200ms;
+  --theme-rotate-duration: 400ms;
+  --theme-fade-duration: 150ms;
+}
+
+/* Base transition for theme changes */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: var(--theme-transition-timing);
+  transition-duration: var(--theme-transition-duration);
+}
+
+/* Disable transitions when needed */
+.disable-transitions * {
+  transition: none !important;
+}
+
+/* Theme-specific animations */
+@keyframes theme-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes theme-rotate {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(0.8);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes theme-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.theme-pulse {
+  animation: theme-pulse 2s infinite;
+}
+
+.theme-rotate {
+  animation: theme-rotate var(--theme-rotate-duration) var(--theme-transition-timing);
+}
+
+.theme-fade {
+  animation: theme-fade var(--theme-fade-duration) var(--theme-transition-timing);
+}
+
+/* Theme-specific focus styles with enhanced animations */
+:root[data-theme="light"] :focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  transition: outline-offset 0.2s ease;
+}
+
+:root[data-theme="dark"] :focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  transition: outline-offset 0.2s ease;
+}
+
+/* Theme-specific scrollbar with smooth transitions */
+:root[data-theme="light"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  transition: width 0.2s ease, height 0.2s ease;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 5px;
+  transition: background-color 0.2s ease, border-radius 0.2s ease;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+  transform: scale(1.1);
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  transition: width 0.2s ease, height 0.2s ease;
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 5px;
+  transition: background-color 0.2s ease, border-radius 0.2s ease;
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+  transform: scale(1.1);
+}
+
+/* Theme-specific selection with smooth transitions */
+:root[data-theme="light"] ::selection {
+  background-color: hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary-foreground));
+  transition: background-color 0.2s ease;
+}
+
+:root[data-theme="dark"] ::selection {
+  background-color: hsl(var(--primary) / 0.3);
+  color: hsl(var(--primary-foreground));
+  transition: background-color 0.2s ease;
+}
+
+/* Theme-specific placeholder with fade effect */
+:root[data-theme="light"] ::placeholder {
+  color: hsl(var(--muted-foreground) / 0.7);
+  transition: opacity 0.2s ease;
+}
+
+:root[data-theme="dark"] ::placeholder {
+  color: hsl(var(--muted-foreground) / 0.7);
+  transition: opacity 0.2s ease;
+}
+
+/* Theme-specific focus ring with scale effect */
+:root[data-theme="light"] .focus-ring {
+  --focus-ring: hsl(var(--ring));
+  --focus-ring-offset: hsl(var(--background));
+  transition: transform 0.2s ease;
+}
+
+:root[data-theme="dark"] .focus-ring {
+  --focus-ring: hsl(var(--ring));
+  --focus-ring-offset: hsl(var(--background));
+  transition: transform 0.2s ease;
+}
+
+/* Theme-specific code blocks with hover effect */
+:root[data-theme="light"] pre,
+:root[data-theme="light"] code {
+  background-color: hsl(var(--muted) / 0.3);
+  color: hsl(var(--foreground));
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="light"] pre:hover,
+:root[data-theme="light"] code:hover {
+  transform: translateY(-1px);
+  background-color: hsl(var(--muted) / 0.4);
+}
+
+:root[data-theme="dark"] pre,
+:root[data-theme="dark"] code {
+  background-color: hsl(var(--muted) / 0.3);
+  color: hsl(var(--foreground));
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="dark"] pre:hover,
+:root[data-theme="dark"] code:hover {
+  transform: translateY(-1px);
+  background-color: hsl(var(--muted) / 0.4);
+}
+
+/* Theme-specific blockquote with hover effect */
+:root[data-theme="light"] blockquote {
+  border-left-color: hsl(var(--primary));
+  background-color: hsl(var(--muted) / 0.2);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="light"] blockquote:hover {
+  transform: translateX(2px);
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+:root[data-theme="dark"] blockquote {
+  border-left-color: hsl(var(--primary));
+  background-color: hsl(var(--muted) / 0.2);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="dark"] blockquote:hover {
+  transform: translateX(2px);
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+/* Theme-specific table with hover effects */
+:root[data-theme="light"] table {
+  border-color: hsl(var(--border));
+  transition: border-color 0.2s ease;
+}
+
+:root[data-theme="light"] th {
+  background-color: hsl(var(--muted) / 0.3);
+  transition: background-color 0.2s ease;
+}
+
+:root[data-theme="light"] tr:hover {
+  background-color: hsl(var(--muted) / 0.1);
+  transform: scale(1.01);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="dark"] table {
+  border-color: hsl(var(--border));
+  transition: border-color 0.2s ease;
+}
+
+:root[data-theme="dark"] th {
+  background-color: hsl(var(--muted) / 0.3);
+  transition: background-color 0.2s ease;
+}
+
+:root[data-theme="dark"] tr:hover {
+  background-color: hsl(var(--muted) / 0.1);
+  transform: scale(1.01);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+/* Theme-specific form elements with enhanced transitions */
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="light"] input:focus,
+:root[data-theme="light"] textarea:focus,
+:root[data-theme="light"] select:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] select {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="dark"] input:focus,
+:root[data-theme="dark"] textarea:focus,
+:root[data-theme="dark"] select:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+}
+
+/* Theme-specific button hover effects */
+:root[data-theme="light"] .btn-hover-effect:hover {
+  background-color: hsl(var(--primary) / 0.1);
+}
+
+:root[data-theme="dark"] .btn-hover-effect:hover {
+  background-color: hsl(var(--primary) / 0.2);
+}
+
+/* Theme-specific card hover effects */
+:root[data-theme="light"] .card-hover-effect:hover {
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.05);
+}
+
+:root[data-theme="dark"] .card-hover-effect:hover {
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.1);
+}
+
+/* Theme-specific link hover effects */
+:root[data-theme="light"] a:hover {
+  color: hsl(var(--primary));
+}
+
+:root[data-theme="dark"] a:hover {
+  color: hsl(var(--primary));
+}
+
+/* Theme-specific focus ring animation */
+@keyframes focus-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--focus-ring);
+  }
+  70% {
+    box-shadow: 0 0 0 4px var(--focus-ring);
+  }
+  100% {
+    box-shadow: 0 0 0 0 var(--focus-ring);
+  }
+}
+
+.focus-ring-animation {
+  animation: focus-ring 1.5s infinite;
+} 

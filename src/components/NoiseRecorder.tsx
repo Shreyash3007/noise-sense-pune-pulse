@@ -1,15 +1,16 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
-import { Mic, MicOff, Volume2, MapPin, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { Mic, MicOff, Volume2, MapPin, CheckCircle2, AlertTriangle, Loader2, XCircle, Settings, Info, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -18,13 +19,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import NoiseSenseLogo from '@/components/NoiseSenseLogo';
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { env } from "@/lib/env";
+
+// Set Mapbox token directly from environment
+mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN;
 
 const NoiseRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
   const [decibels, setDecibels] = useState<number | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [locationStatus, setLocationStatus] = useState<"idle" | "fetching" | "success" | "error">("idle");
+  const [locationStatus, setLocationStatus] = useState<"idle" | "fetching" | "success" | "error" | "skipped">("idle");
   const [noiseType, setNoiseType] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,10 +48,19 @@ const NoiseRecorder = () => {
   const [recordingTimeLeft, setRecordingTimeLeft] = useState(10);
   const [recordingStage, setRecordingStage] = useState<"permission" | "recording" | "processing" | "done">("permission");
   const [permissionError, setPermissionError] = useState("");
+  const [hideErrors, setHideErrors] = useState(false);
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [permissionStep, setPermissionStep] = useState<"mic" | "location">("mic");
+  const [showLocationError, setShowLocationError] = useState(false);
   const { toast } = useToast();
   
   // Animation for visualizing sound
   const [animationLevel, setAnimationLevel] = useState(0);
+  
+  const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
+  const locationMapContainer = useRef<HTMLDivElement>(null);
+  const locationMap = useRef<mapboxgl.Map | null>(null);
+  const locationMarker = useRef<mapboxgl.Marker | null>(null);
   
   useEffect(() => {
     // Reset audio visualization when not recording
@@ -50,50 +75,151 @@ const NoiseRecorder = () => {
 
   // Get noise category options
   const noiseCategories = [
-    { value: "traffic", label: "Traffic Noise" },
-    { value: "construction", label: "Construction" },
-    { value: "industrial", label: "Industrial" },
-    { value: "entertainment", label: "Entertainment/Events" },
-    { value: "aircraft", label: "Aircraft" },
-    { value: "residential", label: "Residential/Neighbors" },
-    { value: "other", label: "Other" },
+    { value: "Traffic", label: "Traffic Noise" },
+    { value: "Construction", label: "Construction" },
+    { value: "Industrial", label: "Industrial" },
+    { value: "Social Event", label: "Social Event/Entertainment" },
+    { value: "Loudspeaker", label: "Loudspeaker" },
+    { value: "Vehicle Horn", label: "Vehicle Horn" },
+    { value: "Commercial", label: "Commercial" },
+    { value: "Residential", label: "Residential/Neighbors" },
+    { value: "Other", label: "Other" },
   ];
   
   const getLocationAsync = async () => {
     setLocationStatus("fetching");
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        });
+        navigator.geolocation.getCurrentPosition(resolve, 
+          // Custom error handler to avoid throwing actual errors
+          (posError) => {
+            // Handle the error here without throwing
+            setLocationStatus("error");
+            setShowLocationError(true);
+            // Use a custom object instead of throwing the error
+            resolve({ handled: true, error: posError } as any);
+          }, 
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
       });
+      
+      // Check if it's our handled error response
+      if (pos && (pos as any).handled) {
+        return null;
+      }
       
       setLocation({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
       });
       setLocationStatus("success");
+      
+      // Open location confirmation dialog
+      setIsLocationMapOpen(true);
+      
       return pos;
     } catch (error) {
-      console.error("Error getting location:", error);
+      // This should now only catch unexpected errors
+      console.error("Unexpected error in location handling:", error);
       setLocationStatus("error");
-      throw error;
+      setShowLocationError(true);
+      return null;
     }
   };
 
-  const startRecording = async () => {
+  // Handle step-by-step permission requests
+  const requestPermissions = async () => {
+    setShowPermissionDialog(true);
+    setPermissionStep("mic");
+  };
+
+  const handleMicPermission = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop stream immediately after testing permission
+      stream.getTracks().forEach(track => track.stop());
+      setPermissionStep("location");
+    } catch (error) {
+      console.error("Microphone permission error:", error);
+      setPermissionError("Microphone access was denied. Please grant permission in your browser settings.");
+      setShowPermissionDialog(false);
+    }
+  };
+
+  const handleLocationConfirmation = () => {
+    setIsLocationMapOpen(false);
+    
+    toast({
+      title: "Location Confirmed",
+      description: "Your location has been confirmed and will be used for the noise report.",
+      variant: "default",
+    });
+    
+    // Continue with recording after location is confirmed
+    startRecordingWithPermissions();
+  };
+
+  const handleLocationPermission = async () => {
+    const pos = await getLocationAsync();
+    
+    if (pos) {
+      // Location successfully obtained
+      setShowPermissionDialog(false);
+      // The startRecordingWithPermissions will be called after location confirmation
+    }
+    // Otherwise the error dialog is already shown by getLocationAsync
+  };
+
+  const skipLocationAndContinue = () => {
+    setLocationStatus("skipped");
+    setShowLocationError(false);
+    setShowPermissionDialog(false);
+    // Start recording without location data
+    startRecordingWithPermissions();
+    
+    toast({
+      title: "Location Skipped",
+      description: "Recording without location data. You can manually describe the location in the notes.",
+      variant: "default",
+    });
+  };
+
+  const startRecordingWithPermissions = async () => {
     try {
       setRecordingStage("permission");
       setPermissionError("");
       
-      // Request location permission first
-      await getLocationAsync();
+      // Check if browser supports getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Your browser doesn't support audio recording. Please try using a modern browser like Chrome, Firefox, or Edge.");
+      }
       
-      // Request microphone permission and start recording
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const audioContext = new AudioContext();
+      // Request microphone again to start actual recording
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+        
+      // Initialize audio processing
+      let audioContext;
+      try {
+        // Use type assertion to handle browser prefixes
+        const AudioContextClass = window.AudioContext || 
+          (window as any).webkitAudioContext;
+        audioContext = new AudioContextClass();
+        await audioContext.resume(); // Ensure context is running (needed in some browsers)
+      } catch (audioContextError) {
+        stream.getTracks().forEach(track => track.stop());
+        throw new Error("Could not initialize audio processing. Please try again or use a different browser.");
+      }
+      
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       
@@ -128,7 +254,7 @@ const NoiseRecorder = () => {
         // Calculate average volume for animation
         const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
         setAnimationLevel(average);
-      }, 100);
+      }, 50);
       
       // Record for 10 seconds
       setTimeout(async () => {
@@ -156,19 +282,31 @@ const NoiseRecorder = () => {
       console.error("Error starting recording:", error);
       setIsRecording(false);
       
-      if (error instanceof DOMException && error.name === "NotAllowedError") {
-        setPermissionError("Microphone access was denied. Please grant permission to continue.");
+      // Handle specific error messages
+      if (error instanceof Error) {
+        setPermissionError(error.message);
       } else if (locationStatus === "error") {
-        setPermissionError("Location access was denied. We need your location to map noise data.");
+        setPermissionError("Location access was denied. You can still record noise without location data.");
       } else {
         setPermissionError("An error occurred while accessing your device. Please check permissions and try again.");
       }
       
       toast({
-        title: "Error",
-        description: "Could not access microphone or location. Please check permissions.",
+        title: "Permission Error",
+        description: "Could not access microphone. Please check your browser settings.",
         variant: "destructive",
       });
+    }
+  };
+
+  const startRecording = () => {
+    // First check if we already have permissions
+    if (location && locationStatus === "success") {
+      // Show location confirmation even if we already have location
+      setIsLocationMapOpen(true);
+    } else {
+      // Request permissions step by step
+      requestPermissions();
     }
   };
 
@@ -221,309 +359,437 @@ const NoiseRecorder = () => {
     }
   };
 
-  // Render noise level meter visual
+  // Function to retry permissions
+  const retryPermissions = () => {
+    setPermissionError("");
+    requestPermissions();
+  };
+
   const renderNoiseMeter = () => {
-    if (decibels === null) return null;
+    if (!decibels) return null;
     
     const getColor = () => {
-      if (decibels >= 80) return "text-red-500";
-      if (decibels >= 60) return "text-amber-500";
-      return "text-green-500";
+      if (decibels >= 85) return "bg-red-500";
+      if (decibels >= 70) return "bg-orange-500";
+      if (decibels >= 55) return "bg-yellow-500";
+      return "bg-green-500";
     };
     
     const getWidthPercentage = () => {
-      return Math.min(100, (decibels / 100) * 100);
+      return Math.min(100, (decibels / 120) * 100);
     };
     
     const getDescription = () => {
-      if (decibels >= 80) return "High - Potentially harmful";
-      if (decibels >= 60) return "Moderate - Typical urban noise";
-      return "Low - Generally safe levels";
+      if (decibels >= 85) return "Loud - Potential hearing damage with prolonged exposure";
+      if (decibels >= 70) return "Moderate to loud - Comparable to busy street traffic";
+      if (decibels >= 55) return "Moderate - Normal conversation level";
+      return "Quiet - Background noise level";
     };
     
     return (
-      <div className="mt-4 animate-fade-in">
-        <div className="flex justify-between items-center mb-1">
-          <p className="text-sm font-medium">Measured Noise Level</p>
-          <p className={`font-bold ${getColor()}`}>{decibels} dB</p>
-        </div>
-        
-        <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+      <div className="mt-4 mb-8">
+        <h3 className="text-base font-medium mb-2">Measured Noise Level: <span className="font-bold">{decibels} dB</span></h3>
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden">
           <div 
-            className={`h-full ${
-              decibels >= 80 ? 'bg-red-500' : 
-              decibels >= 60 ? 'bg-amber-500' : 
-              'bg-green-500'
-            }`}
+            className={`h-full ${getColor()} transition-all duration-500 ease-out`}
             style={{ width: `${getWidthPercentage()}%` }}
           ></div>
         </div>
-        
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>0 dB</span>
-          <span>{getDescription()}</span>
-          <span>100+ dB</span>
-        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{getDescription()}</p>
       </div>
     );
   };
-
-  // Render sound wave animation during recording
+  
   const renderSoundWaves = () => {
-    // Create 10 bars with dynamic heights based on animation level
+    // Normalize animation level to get values between 0 and 100
+    const normalizedLevel = Math.min(100, Math.max(0, animationLevel));
+    
+    // Generate 5 bars with varying heights based on normalizedLevel
     return (
-      <div className="flex justify-center items-center gap-1 h-16 my-4">
-        {Array.from({ length: 10 }).map((_, i) => {
-          // Calculate a height for each bar based on position and animation level
-          const height = isRecording
-            ? Math.max(10, Math.min(100, animationLevel * (0.5 + Math.abs(Math.sin((i+1) * 0.7)))))
-            : 10 + Math.random() * 10;
-            
+      <div className="flex justify-center items-center h-20 gap-1 my-6">
+        {[0.6, 0.8, 1, 0.8, 0.6].map((factor, index) => {
+          const height = isRecording ? normalizedLevel * factor : 5 + Math.random() * 15;
           return (
             <div
-              key={i}
-              className={`w-2 rounded-full ${
-                isRecording ? 'bg-red-500' : 'bg-gray-300'
-              } animate-pulse`}
-              style={{
-                height: `${height}%`,
-                animationDelay: `${i * 0.1}s`,
-              }}
+              key={index}
+              className={`w-2 rounded-full ${isRecording ? 'bg-purple-500' : 'bg-gray-400 dark:bg-gray-600'} transition-all duration-75`}
+              style={{ height: `${height}%` }}
             ></div>
           );
         })}
       </div>
     );
   };
-  
-  return (
-    <div className="space-y-6">
-      <div className="text-center">
-        {isRecording ? (
-          <div className="space-y-4 animate-fade-in">
-            <div className="flex flex-col items-center">
-              <div className="relative">
-                <div className="absolute -inset-1 rounded-full bg-red-500 animate-ping opacity-75"></div>
-                <div className="relative rounded-full bg-white p-3 shadow-md">
-                  <Mic className="h-10 w-10 text-red-500" />
-                </div>
-              </div>
-              <div className="mt-4 text-xl font-semibold text-red-500">
-                Recording in progress...
-              </div>
-              <div className="text-sm text-gray-600 mt-1">
-                Please keep quiet and hold your device steady
-              </div>
-            </div>
-            
-            {renderSoundWaves()}
-            
-            <div className="space-y-2">
-              <Progress value={recordingProgress} className="h-2" />
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Recording...</span>
-                <span>{recordingTimeLeft}s remaining</span>
-              </div>
-            </div>
-          </div>
-        ) : permissionError ? (
-          <Card className="p-4 border-red-200 bg-red-50">
-            <div className="flex flex-col items-center space-y-3">
-              <AlertTriangle className="h-10 w-10 text-red-500" />
-              <h3 className="text-lg font-medium text-red-800">Permission Required</h3>
-              <p className="text-center text-red-600">{permissionError}</p>
-              <Button 
-                onClick={() => {
-                  setPermissionError("");
-                  startRecording();
-                }} 
-                variant="outline"
-                className="border-red-300 text-red-600 hover:bg-red-50"
-              >
-                Try Again
-              </Button>
-            </div>
-          </Card>
-        ) : decibels ? (
-          <div className="space-y-3">
-            <div className="flex flex-col items-center">
-              <div className="rounded-full bg-white p-3 shadow-md border border-gray-100">
-                <Volume2 className={`h-10 w-10 ${
-                  decibels >= 80 ? 'text-red-500' : 
-                  decibels >= 60 ? 'text-amber-500' : 
-                  'text-green-500'
-                }`} />
-              </div>
-              <div className="mt-4 flex items-center justify-center">
-                <div className={`text-3xl font-bold ${
-                  decibels >= 80 ? 'text-red-500' : 
-                  decibels >= 60 ? 'text-amber-500' : 
-                  'text-green-500'
-                }`}>
-                  {decibels} dB
-                </div>
-                <span className="ml-2 text-gray-500">measured</span>
-              </div>
-            </div>
-            
-            {renderNoiseMeter()}
-            
-            <Alert variant="default" className="bg-blue-50 border-blue-200 mt-4">
-              <AlertDescription className="text-sm text-blue-800">
-                {decibels >= 80 ? (
-                  "This noise level is high and potentially harmful with prolonged exposure."
-                ) : decibels >= 60 ? (
-                  "This is a moderate noise level, typical in urban environments."
-                ) : (
-                  "This noise level is generally considered safe."
-                )}
-              </AlertDescription>
-            </Alert>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <Button 
-              onClick={startRecording} 
-              className="w-full relative overflow-hidden group bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700"
-              size="lg"
-            >
-              <div className="absolute inset-0 w-full h-full transition-all duration-300 scale-x-0 group-hover:scale-x-100 group-hover:bg-white/10"></div>
-              <div className="relative flex items-center justify-center gap-2">
-                <Mic className="h-5 w-5" />
-                Start Measuring Noise
-              </div>
-            </Button>
-            
-            <div className="text-sm text-center text-gray-500">
-              This will record for 10 seconds to measure the average noise level
-            </div>
-            
-            {renderSoundWaves()}
-          </div>
-        )}
-      </div>
 
-      {decibels !== null && (
-        <div className="space-y-4 animate-fade-in">
-          <div className="space-y-2">
-            <Label htmlFor="noiseType">Type of Noise</Label>
-            <Select 
-              value={noiseType} 
-              onValueChange={setNoiseType}
-            >
-              <SelectTrigger id="noiseType" className="w-full">
-                <SelectValue placeholder="Select noise type" />
-              </SelectTrigger>
-              <SelectContent>
-                {noiseCategories.map(category => (
-                  <SelectItem key={category.value} value={category.value}>
-                    {category.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Additional Notes (Optional)</Label>
-            <Input
-              id="notes"
-              placeholder="Add any relevant details about the noise..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          <div className="pt-2">
-            <div className="flex items-center gap-2 mb-3 text-sm">
-              <MapPin className="h-4 w-4 text-gray-500" />
-              {locationStatus === "success" ? (
-                <span className="text-green-600 flex items-center">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Location captured successfully
-                </span>
-              ) : locationStatus === "fetching" ? (
-                <span className="text-amber-600 flex items-center">
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  Getting location...
-                </span>
-              ) : locationStatus === "error" ? (
-                <span className="text-red-600 flex items-center">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  Could not access location
-                </span>
-              ) : (
-                <span className="text-gray-500">Location required for submission</span>
-              )}
-            </div>
-            <Button 
-              onClick={submitReport} 
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-300"
-              disabled={!decibels || !location || !noiseType || isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "Submit Noise Report"
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
-      
-      {/* Success Dialog */}
-      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+  // Location error dialog
+  const renderLocationErrorDialog = () => {
+    return (
+      <Dialog open={showLocationError} onOpenChange={setShowLocationError}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              Report Submitted Successfully
-            </DialogTitle>
+            <DialogTitle>Location Access Denied</DialogTitle>
             <DialogDescription>
-              Thank you for contributing to the Noise Sense project!
+              You've denied access to your location. While location data helps us map noise pollution accurately, you can continue without it.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="py-4">
-            <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-              <p className="text-green-800">
-                Your noise report has been added to our database and will help identify noise pollution patterns in Pune.
-              </p>
-            </div>
-            
-            <div className="mt-4 text-sm text-gray-600">
-              <p className="font-medium">Impact of your contribution:</p>
-              <ul className="list-disc pl-5 mt-2 space-y-1">
-                <li>Helps create accurate noise pollution maps</li>
-                <li>Supports local authorities in policy decisions</li>
-                <li>Contributes to a healthier urban environment</li>
-              </ul>
-            </div>
+          <div className="flex items-center space-x-2 mb-4">
+            <AlertTriangle className="h-6 w-6 text-yellow-500" />
+            <p className="text-sm text-muted-foreground">
+              Without location data, your noise report won't appear on the map, but we'll still collect the noise level data.
+            </p>
           </div>
-          
-          <DialogFooter className="sm:justify-between gap-2">
-            <Button variant="outline" onClick={() => setShowSuccessDialog(false)}>
-              Close
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => {
+              setShowLocationError(false);
+              setShowPermissionDialog(false);
+            }}>
+              Cancel
             </Button>
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700"
-              onClick={() => {
-                setShowSuccessDialog(false);
-                setDecibels(null);
-                setNoiseType("");
-                setNotes("");
-                window.location.href = "/map";
-              }}
-            >
-              View on Map
+            <Button variant="default" onClick={skipLocationAndContinue}>
+              Continue Without Location
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    );
+  };
+
+  // Initialize and setup the location confirmation map
+  useEffect(() => {
+    if (isLocationMapOpen && locationMapContainer.current && location) {
+      // Create a new map instance for location confirmation
+      locationMap.current = new mapboxgl.Map({
+        container: locationMapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [location.longitude, location.latitude],
+        zoom: 15,
+        attributionControl: false,
+      });
+      
+      // Add navigation controls to the map
+      locationMap.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      
+      // Add a draggable marker to the map at the user's location
+      locationMarker.current = new mapboxgl.Marker({
+        draggable: true,
+        color: "#8B5CF6" // Purple color
+      })
+        .setLngLat([location.longitude, location.latitude])
+        .addTo(locationMap.current);
+      
+      // Update location state when marker is dragged
+      locationMarker.current.on('dragend', () => {
+        const lngLat = locationMarker.current.getLngLat();
+        setLocation({
+          latitude: lngLat.lat,
+          longitude: lngLat.lng
+        });
+      });
+      
+      // Cleanup function
+      return () => {
+        if (locationMap.current) {
+          locationMap.current.remove();
+          locationMap.current = null;
+        }
+      };
+    }
+  }, [isLocationMapOpen, location]);
+
+  // Add location confirmation dialog to render method
+  const renderLocationConfirmationDialog = () => {
+    return (
+      <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Confirm Your Location</DialogTitle>
+            <DialogDescription>
+              Drag the marker to adjust your exact location if needed. This helps us accurately map noise pollution data.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="mb-4 rounded-md overflow-hidden border">
+            <div ref={locationMapContainer} className="h-[300px] w-full"></div>
+          </div>
+          
+          <div className="flex items-center gap-2 mb-4 text-sm bg-blue-50 dark:bg-blue-900/30 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+            <Info className="h-5 w-5 text-blue-500 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Your location will be used to:</p>
+              <ul className="list-disc ml-5 mt-1">
+                <li>Map noise pollution across Pune</li>
+                <li>Identify noise hotspots in your neighborhood</li>
+                <li>Help authorities target noise reduction efforts</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 mb-2">
+            <MapPin className="h-4 w-4 text-purple-500" />
+            <span className="font-medium">Current coordinates:</span>
+            <span className="text-gray-600 dark:text-gray-400">
+              {location?.latitude.toFixed(6)}, {location?.longitude.toFixed(6)}
+            </span>
+          </div>
+          
+          <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+            <Button variant="outline" onClick={() => setIsLocationMapOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="default" 
+              className="bg-purple-600 hover:bg-purple-700"
+              onClick={handleLocationConfirmation}
+            >
+              <MapPin className="mr-2 h-4 w-4" />
+              Confirm Location
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  return (
+    <Card className="w-full max-w-xl mx-auto p-6 shadow-lg bg-white dark:bg-gray-900 relative">
+      {/* Animation for recording */}
+      <div
+        className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none"
+        style={{ zIndex: 1 }}
+      >
+        {isRecording && (
+          <div className="pulse-recording animate-pulse-slow"></div>
+        )}
+      </div>
+      
+      <div className="relative" style={{ zIndex: 2 }}>
+        {/* Card Content */}
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-center">
+            <NoiseSenseLogo size="sm" animated={isRecording} className="mr-3" />
+            <div>
+              <h2 className="text-2xl font-bold flex items-center text-gray-900 dark:text-white">
+                Noise Reporter
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                Measure and report noise pollution in your area
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {permissionError && !hideErrors && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Permission Error</AlertTitle>
+            <AlertDescription className="flex flex-col space-y-2">
+              <div>{permissionError}</div>
+              <Button onClick={retryPermissions} variant="outline" size="sm">
+                <RefreshCw className="mr-2 h-3 w-3" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-6">
+          {/* Recording UI */}
+          {isRecording && (
+            <div className="mb-8 animate-in fade-in-0 duration-300">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium text-red-500">Recording in progress...</span>
+                <span className="text-sm">{recordingTimeLeft}s left</span>
+              </div>
+              <Progress value={recordingProgress} className="h-2" />
+            </div>
+          )}
+
+          {/* Recording button */}
+          {!decibels && (
+            <Button
+              onClick={startRecording}
+              disabled={isRecording}
+              className="w-full py-6 text-lg bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-xl"
+            >
+              {isRecording ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Recording...
+                </>
+              ) : (
+                <>
+                  <Mic className="mr-2 h-5 w-5" />
+                  Start Recording
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* Noise measurement display */}
+          {renderNoiseMeter()}
+
+          {/* Location display */}
+          {location && (
+            <div className="flex items-center mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-900">
+              <MapPin className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
+              <div className="text-sm">
+                <span className="font-medium">Location captured:</span> 
+                <span className="text-gray-600 dark:text-gray-400 ml-1">
+                  {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Form fields */}
+          {decibels && (
+            <div className="space-y-4 animate-in fade-in-50 duration-300">
+              <div>
+                <Label htmlFor="noise-type">Noise Type</Label>
+                <Select 
+                  value={noiseType} 
+                  onValueChange={setNoiseType}
+                >
+                  <SelectTrigger id="noise-type">
+                    <SelectValue placeholder="Select noise type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {noiseCategories.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="notes">Additional Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Describe the noise source or any other relevant details"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="resize-none"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="pt-4">
+                <Button
+                  onClick={submitReport}
+                  disabled={isSubmitting || !noiseType}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Submit Noise Report
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Render dialogs */}
+      <Dialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{
+              permissionStep === "mic" 
+                ? "Microphone Access Required" 
+                : "Location Access Required"
+            }</DialogTitle>
+            <DialogDescription>
+              {permissionStep === "mic" 
+                ? "We need access to your microphone to measure noise levels."
+                : "We need your location to map the noise data accurately."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex justify-center py-6">
+            {permissionStep === "mic" ? (
+              <div className="rounded-full bg-purple-100 dark:bg-purple-900/30 p-6 animate-pulse">
+                <Mic className="h-12 w-12 text-purple-500" />
+              </div>
+            ) : (
+              <div className="rounded-full bg-purple-100 dark:bg-purple-900/30 p-6 animate-pulse">
+                <MapPin className="h-12 w-12 text-purple-500" />
+              </div>
+            )}
+          </div>
+          
+          <div className="text-center text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {permissionStep === "mic" 
+              ? "Your browser will prompt you to allow microphone access."
+              : "Your browser will prompt you to share your location."
+            }
+          </div>
+          
+          <DialogFooter className="sm:justify-center">
+            <Button 
+              type="button" 
+              variant="default" 
+              onClick={permissionStep === "mic" ? handleMicPermission : handleLocationPermission}
+              className="w-full sm:w-auto"
+            >
+              {permissionStep === "mic" ? "Allow Microphone" : "Allow Location"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success dialog */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Report Submitted Successfully!</DialogTitle>
+            <DialogDescription>
+              Thank you for contributing to our noise pollution monitoring project.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex justify-center py-6">
+            <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-6">
+              <CheckCircle2 className="h-12 w-12 text-green-500" />
+            </div>
+          </div>
+          
+          <div className="text-center space-y-2 mb-4">
+            <p className="font-medium">Your noise report has been added to our database.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              You can view it on the map along with other noise reports.
+            </p>
+          </div>
+          
+          <DialogFooter className="sm:justify-center">
+            <Button 
+              type="button" 
+              variant="default" 
+              onClick={() => setShowSuccessDialog(false)}
+              className="w-full sm:w-auto"
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add location error dialog */}
+      {renderLocationErrorDialog()}
+
+      {/* Add location confirmation dialog */}
+      {renderLocationConfirmationDialog()}
+    </Card>
   );
 };
 

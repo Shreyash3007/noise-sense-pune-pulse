@@ -1,73 +1,126 @@
-# Welcome to your Lovable project
+# Noise Sense - Pune Pulse
 
-## Project info
+A crowdsourced noise pollution monitoring application for Pune city.
 
-**URL**: https://lovable.dev/projects/9aa522b5-e35c-4205-8fbb-82644cfdacf4
+## Overview
 
-## How can I edit this code?
+Noise Sense enables citizens of Pune to report noise pollution using their smartphone microphones. The app collects, analyzes, and visualizes noise pollution data to help government officials identify causes, patterns, and potential solutions for urban noise issues.
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **Anonymous Noise Reporting**: Easily measure and report noise pollution
+- **Interactive Maps**: View noise hotspots across the city
+- **Data Visualization**: Analyze noise patterns and trends
+- **Educational Content**: Learn about noise pollution health effects
+- **Government Portal**: Secure access for officials to view aggregated data
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/9aa522b5-e35c-4205-8fbb-82644cfdacf4) and start prompting.
+## Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend**: React, Tailwind CSS, Shadcn UI
+- **Backend**: Supabase (PostgreSQL)
+- **Maps**: Mapbox GL
+- **Data Visualization**: Recharts
+- **Authentication**: Supabase Auth
 
-**Use your preferred IDE**
+## Getting Started
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Node.js 18+ and npm
+- Supabase account (for database)
+- Mapbox account (for maps)
 
-Follow these steps:
+### Environment Setup
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/noise-sense-pune-pulse.git
+   cd noise-sense-pune-pulse
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install dependencies:
+   ```
+   npm install
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Create a `.env` file in the root directory with the following variables:
+   ```
+   VITE_MAPBOX_ACCESS_TOKEN=your_mapbox_token
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+4. Start the development server:
+   ```
+   npm run dev
+   ```
+
+### Database Setup
+
+1. Create a Supabase project
+2. Run the following SQL to create the necessary tables:
+
+```sql
+CREATE TABLE noise_reports (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  latitude FLOAT NOT NULL,
+  longitude FLOAT NOT NULL,
+  decibel_level FLOAT NOT NULL,
+  noise_type TEXT NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  device_info JSONB
+);
+
+-- Create indexes for better query performance
+CREATE INDEX noise_reports_location_idx ON noise_reports USING gist (
+  ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)
+);
+CREATE INDEX noise_reports_created_at_idx ON noise_reports (created_at);
+CREATE INDEX noise_reports_noise_type_idx ON noise_reports (noise_type);
 ```
 
-**Edit a file directly in GitHub**
+## Deployment
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Build for Production
 
-**Use GitHub Codespaces**
+```
+npm run build
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+The built files will be in the `dist` directory, ready to be deployed to your hosting provider of choice.
 
-## What technologies are used for this project?
+## Project Structure
 
-This project is built with:
+```
+noise-sense-pune-pulse/
+├── public/               # Static assets
+├── src/
+│   ├── components/       # Reusable UI components
+│   ├── hooks/            # Custom React hooks
+│   ├── integrations/     # External service integrations
+│   ├── layouts/          # Page layouts
+│   ├── lib/              # Utility functions and constants
+│   ├── pages/            # Application pages
+│   ├── App.tsx           # Main application component
+│   └── main.tsx          # Application entry point
+├── .env                  # Environment variables (git-ignored)
+└── package.json          # Project dependencies and scripts
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Contributing
 
-## How can I deploy this project?
+1. Fork the repository
+2. Create your feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add some amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
 
-Simply open [Lovable](https://lovable.dev/projects/9aa522b5-e35c-4205-8fbb-82644cfdacf4) and click on Share -> Publish.
+## License
 
-## Can I connect a custom domain to my Lovable project?
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-Yes, you can!
+## Acknowledgments
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- PMC (Pune Municipal Corporation) for open data
+- Contributors and community members who provided feedback and testing

@@ -1,0 +1,41 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#paint0_radial)" stroke="#8B5CF6" stroke-width="6"/>
+  
+  <!-- Sound waves emanating from center -->
+  <path d="M256 128C267.046 128 276 136.954 276 148C276 159.046 267.046 168 256 168C244.954 168 236 159.046 236 148C236 136.954 244.954 128 256 128Z" fill="#8B5CF6"/>
+  
+  <!-- Sound waves -->
+  <path d="M256 88C219.549 88 190 117.549 190 154V358C190 394.451 219.549 424 256 424C292.451 424 322 394.451 322 358V154C322 117.549 292.451 88 256 88ZM256 108C281.346 108 302 128.654 302 154V358C302 383.346 281.346 404 256 404C230.654 404 210 383.346 210 358V154C210 128.654 230.654 108 256 108Z" fill="#8B5CF6"/>
+  
+  <!-- Outer sound wave rings -->
+  <circle cx="256" cy="256" r="160" stroke="#8B5CF6" stroke-width="6" stroke-dasharray="15 15" opacity="0.6"/>
+  <circle cx="256" cy="256" r="190" stroke="#8B5CF6" stroke-width="4" stroke-dasharray="10 10" opacity="0.4"/>
+  <circle cx="256" cy="256" r="220" stroke="#8B5CF6" stroke-width="3" stroke-dasharray="8 8" opacity="0.3"/>
+  
+  <!-- Pune city skyline silhouette -->
+  <path d="M80 350H432V390H80V350Z" fill="#6D28D9"/>
+  <path d="M120 350V300H140V350H120Z" fill="#6D28D9"/>
+  <path d="M150 350V320H160V310H170V350H150Z" fill="#6D28D9"/>
+  <path d="M180 350V290H185V280H195V290H200V350H180Z" fill="#6D28D9"/>
+  <path d="M210 350V310H225V300H240V310H255V350H210Z" fill="#6D28D9"/>
+  <path d="M265 350V280H275V270H285V260H295V270H305V280H315V350H265Z" fill="#6D28D9"/>
+  <path d="M325 350V320H335V310H345V300H355V310H365V320H375V350H325Z" fill="#6D28D9"/>
+  <path d="M385 350V290H395V280H405V350H385Z" fill="#6D28D9"/>
+  
+  <!-- Pulse wave -->
+  <path d="M100 288L140 248L175 288L215 208L255 308L295 238L335 288L370 188L410 288" stroke="#EC4899" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Text: "NOISE SENSE" -->
+  <text x="256" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="24" fill="#8B5CF6">NOISE SENSE</text>
+  <text x="256" y="455" text-anchor="middle" font-family="Arial, sans-serif" font-style="italic" font-size="18" fill="#6D28D9">PUNE PULSE</text>
+  
+  <!-- Gradients -->
+  <defs>
+    <radialGradient id="paint0_radial" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(240)">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.8" stop-color="#F5F3FF"/>
+      <stop offset="1" stop-color="#EDE9FE"/>
+    </radialGradient>
+  </defs>
+</svg> 
