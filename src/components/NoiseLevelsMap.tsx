@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +35,7 @@ const NoiseLevelsMap = () => {
       
       try {
         const { data, error } = await supabase.functions.invoke('get_secret', {
-          body: { secret_name: 'MAPBOX_ACCESS_TOKEN' }
+          body: JSON.stringify({ secret_name: 'MAPBOX_ACCESS_TOKEN' })
         });
 
         if (error || !data?.data) {
