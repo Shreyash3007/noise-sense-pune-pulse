@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Volume2, MapPin, Info, Activity, BarChart2, Menu, X, Mic, User } from "lucide-react";
@@ -7,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import NoiseSenseLogo from '@/components/NoiseSenseLogo';
 import ThemeToggle from '@/components/ThemeToggle';
+import NotificationSystem from '@/components/NotificationSystem';
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -41,8 +41,6 @@ export function Header() {
 
   const mainNavItems = [
     { label: "Home", path: "/", icon: <Volume2 className="h-4 w-4 mr-2" /> },
-    { label: "Analytics", path: "/map", icon: <BarChart2 className="h-4 w-4 mr-2" /> },
-    { label: "Record", path: "/record", icon: <Mic className="h-4 w-4 mr-2" /> },
     { label: "About", path: "/about", icon: <Info className="h-4 w-4 mr-2" /> },
     { label: "Admin", path: "/admin", icon: <User className="h-4 w-4 mr-2" /> },
   ];
@@ -93,16 +91,6 @@ export function Header() {
         {/* Logo and Brand Area */}
         <Link to="/" className="flex items-center space-x-2">
           <NoiseSenseLogo size="sm" animated={true} />
-          <motion.div 
-            className="font-semibold text-lg md:text-xl leading-none"
-            animate={{ opacity: 1, x: 0 }}
-            initial={{ opacity: 0, x: -10 }}
-            transition={{ delay: 0.2 }}
-          >
-            <span className="bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent dark:from-primary dark:to-purple-300">
-              Noise Sense
-            </span>
-          </motion.div>
         </Link>
         
         {/* Desktop Navigation */}
@@ -125,6 +113,7 @@ export function Header() {
 
         {/* Mobile Menu Button and Theme Toggle */}
         <div className="flex items-center gap-2">
+          <NotificationSystem />
           <ThemeToggle />
           
           <Button 

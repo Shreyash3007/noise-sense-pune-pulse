@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, Filter, Loader2, MapPin, RefreshCcw } from "lucide-react";
+import { CalendarIcon, Filter, Loader2, MapPin, RefreshCcw, InfoIcon, ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchNoiseLevels } from "@/integrations/supabase/client";
 import { NoiseLevelsMap } from "@/components/NoiseLevelsMap";
@@ -18,8 +18,11 @@ import { toast } from "@/components/ui/use-toast";
 import { NoiseBarChart } from "@/components/charts/NoiseBarChart";
 import { NoisePieChart } from "@/components/charts/NoisePieChart";
 import { NoiseHeatmapChart } from "@/components/charts/NoiseHeatmapChart";
-import { NoiseAnalyticsDashboard } from "@/components/charts/NoiseAnalyticsDashboard";
+import NoiseTimeSeriesChart from "@/components/charts/NoiseTimeSeriesChart";
 import NoiseSenseLogo from "@/components/NoiseSenseLogo";
+import { Link } from "react-router-dom";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Mock data for analytics charts when actual data isn't available yet
 const mockTimeSeriesData = [
@@ -120,7 +123,6 @@ const mockNoiseReports = [
 
 const AnalyticsDashboard = () => {
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const [activeTab, setActiveTab] = useState("map");
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: new Date(new Date().setDate(new Date().getDate() - 7)),
     to: new Date(),
@@ -141,7 +143,9 @@ const AnalyticsDashboard = () => {
     queryKey: ['noise-levels', dateRange, noiseType, severity],
     queryFn: async () => {
       try {
-        return mockNoiseReports;
+        // Use the new mock data with 500 Pune noise reports
+        const { generatePuneNoiseData } = await import('@/lib/mock-data');
+        return generatePuneNoiseData(500);
       } catch (error) {
         console.error("Error fetching noise data:", error);
         throw error;
@@ -157,10 +161,6 @@ const AnalyticsDashboard = () => {
     });
   };
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-  };
-
   const formatDate = (date: Date | undefined) => {
     if (!date) return "";
     return format(date, "PPP");
@@ -168,212 +168,259 @@ const AnalyticsDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background" ref={dashboardRef}>
-      <motion.div 
-        className="pt-6 pb-12 px-4 md:px-8"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6 }}
+      <motion.div
+        className="container mx-auto px-4 py-8"
+        style={{ opacity: fadeTransform }}
       >
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold flex items-center gap-3">
-                <NoiseSenseLogo size="md" />
-                Analytics Dashboard
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Explore noise pollution data and insights
+              <h1 className="text-3xl font-bold mb-1">Noise Map</h1>
+              <p className="text-muted-foreground">
+                Explore noise pollution data in your area
               </p>
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="flex flex-wrap items-center gap-2">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="justify-start w-full sm:w-auto">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formatDate(dateRange.from)} - {formatDate(dateRange.to)}
+                  <Button variant="outline" className="flex items-center gap-2 h-9">
+                    <Calendar className="h-4 w-4" />
+                    <span className={isMobile ? 'hidden' : ''}>
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {formatDate(dateRange.from)} - {formatDate(dateRange.to)}
+                          </>
+                        ) : (
+                          formatDate(dateRange.from)
+                        )
+                      ) : (
+                        "Date Range"
+                      )}
+                    </span>
                   </Button>
                 </PopoverTrigger>
+                
                 <PopoverContent className="w-auto p-0" align="end">
                   <Calendar
+                    initialFocus
                     mode="range"
                     selected={dateRange}
-                    onSelect={(range) => setDateRange(range as { from: Date | undefined; to: Date | undefined })}
-                    initialFocus
+                    onSelect={setDateRange as any}
+                    numberOfMonths={isMobile ? 1 : 2}
                   />
                 </PopoverContent>
               </Popover>
               
-              <Button onClick={handleRefresh} size="icon" variant="outline">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2 h-9">
+                    <Filter className="h-4 w-4" />
+                    <span className={isMobile ? 'hidden' : ''}>Filters</span>
+                  </Button>
+                </PopoverTrigger>
+                
+                <PopoverContent className="w-[260px]">
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">Noise Type</h4>
+                      <Select
+                        value={noiseType}
+                        onValueChange={setNoiseType}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Types</SelectItem>
+                          <SelectItem value="Traffic">Traffic</SelectItem>
+                          <SelectItem value="Construction">Construction</SelectItem>
+                          <SelectItem value="Industrial">Industrial</SelectItem>
+                          <SelectItem value="Restaurant/Bar">Restaurant/Bar</SelectItem>
+                          <SelectItem value="Loudspeakers">Loudspeakers</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">Severity</h4>
+                      <Select
+                        value={severity}
+                        onValueChange={setSeverity}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Levels" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Levels</SelectItem>
+                          <SelectItem value="low">Low (&lt; 65 dB)</SelectItem>
+                          <SelectItem value="medium">Medium (65-80 dB)</SelectItem>
+                          <SelectItem value="high">High (&gt; 80 dB)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <Button className="w-full" onClick={() => {
+                      refetch();
+                    }}>
+                      Apply Filters
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              
+              <Button variant="outline" size="icon" onClick={handleRefresh} className="h-9 w-9">
                 <RefreshCcw className="h-4 w-4" />
               </Button>
+              
+              <Badge variant="outline" className={noiseType !== 'all' ? 'block' : 'hidden'}>
+                Type: {noiseType}
+              </Badge>
+              
+              <Badge variant="outline" className={severity !== 'all' ? 'block' : 'hidden'}>
+                Severity: {severity}
+              </Badge>
             </div>
           </div>
           
-          <Tabs 
-            defaultValue="map" 
-            value={activeTab} 
-            onValueChange={handleTabChange} 
-            className="w-full"
-          >
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-              <TabsList className="mb-4 sm:mb-0">
-                <TabsTrigger value="map" className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  <span className={isMobile ? 'hidden' : ''}>Noise Map</span>
-                </TabsTrigger>
-                <TabsTrigger value="analytics" className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  <span className={isMobile ? 'hidden' : ''}>Analytics</span>
-                </TabsTrigger>
-              </TabsList>
-              
-              <div className="flex flex-wrap gap-2">
-                <div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-8 gap-2">
-                        <Filter className="h-3 w-3" />
-                        Filters
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <h4 className="font-medium leading-none">Noise Type</h4>
-                          <RadioGroup 
-                            value={noiseType} 
-                            onValueChange={setNoiseType}
-                            className="flex flex-col gap-2"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="all" id="all-types" />
-                              <Label htmlFor="all-types">All Types</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="traffic" id="traffic" />
-                              <Label htmlFor="traffic">Traffic</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="construction" id="construction" />
-                              <Label htmlFor="construction">Construction</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="event" id="event" />
-                              <Label htmlFor="event">Events/Parties</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="industrial" id="industrial" />
-                              <Label htmlFor="industrial">Industrial</Label>
-                            </div>
-                          </RadioGroup>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <h4 className="font-medium leading-none">Severity Level</h4>
-                          <RadioGroup 
-                            value={severity} 
-                            onValueChange={setSeverity}
-                            className="flex flex-col gap-2"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="all" id="all-severity" />
-                              <Label htmlFor="all-severity">All Levels</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="low" id="low" />
-                              <Label htmlFor="low">Low (&lt;60 dB)</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="medium" id="medium" />
-                              <Label htmlFor="medium">Medium (60-80 dB)</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="high" id="high" />
-                              <Label htmlFor="high">High (&gt;80 dB)</Label>
-                            </div>
-                          </RadioGroup>
-                        </div>
-                        
-                        <Button className="w-full" onClick={() => {
-                          refetch();
-                        }}>
-                          Apply Filters
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2 text-lg">Loading data...</span>
+            </div>
+          ) : isError ? (
+            <Card className="mb-8">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <p className="text-center text-destructive mb-4">
+                  There was an error loading the noise data. Please try again.
+                </p>
+                <Button onClick={() => refetch()}>
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="pb-8"
+            >
+              <div className="grid grid-cols-1 gap-6">
+                {/* Map Card */}
+                <Card className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="h-[70vh]">
+                      <NoiseLevelsMap data={noiseData} />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Simple Summary Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>Total Reports</CardDescription>
+                      <CardTitle className="text-2xl">{noiseData?.length || 0}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        Number of noise reports
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>Average Noise</CardDescription>
+                      <CardTitle className="text-2xl">
+                        {noiseData && noiseData.length > 0 
+                          ? Math.round(noiseData.reduce((sum, report) => sum + report.decibel_level, 0) / noiseData.length) 
+                          : 0} dB
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        How loud it is on average
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>Common Noise</CardDescription>
+                      <CardTitle className="text-2xl truncate">
+                        {noiseData && noiseData.length > 0 
+                          ? Object.entries(
+                              noiseData.reduce((acc, report) => {
+                                acc[report.noise_type] = (acc[report.noise_type] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>)
+                            ).sort((a, b) => b[1] - a[1])[0][0]
+                          : "N/A"}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        Most frequent noise source
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>High Noise Areas</CardDescription>
+                      <CardTitle className="text-2xl truncate">
+                        {noiseData && noiseData.length > 0 
+                          ? Object.entries(
+                              noiseData.reduce((acc, report) => {
+                                const area = report.address?.split(',')[0] || 'Unknown';
+                                acc[area] = (acc[area] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>)
+                            ).sort((a, b) => b[1] - a[1])[0][0]
+                          : "N/A"}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        Area with most noise reports
+                      </p>
+                    </CardContent>
+                  </Card>
                 </div>
                 
-                <Badge variant="outline" className={noiseType !== 'all' ? 'block' : 'hidden'}>
-                  Type: {noiseType}
-                </Badge>
-                
-                <Badge variant="outline" className={severity !== 'all' ? 'block' : 'hidden'}>
-                  Severity: {severity}
-                </Badge>
+                {/* Basic Charts */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Types of Noise</CardTitle>
+                      <CardDescription>What's making noise in your area</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="h-[350px] flex items-center justify-center">
+                        <NoisePieChart data={noiseData || []} title="" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>How Loud Is It?</CardTitle>
+                      <CardDescription>Noise levels by different sources</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="h-[350px] flex items-center justify-center">
+                        <NoiseBarChart data={noiseData || []} title="" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
-            
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-2 text-lg">Loading data...</span>
-              </div>
-            ) : isError ? (
-              <Card className="mb-8">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-center text-destructive mb-4">
-                    There was an error loading the noise data. Please try again.
-                  </p>
-                  <Button onClick={() => refetch()}>
-                    <RefreshCcw className="mr-2 h-4 w-4" />
-                    Retry
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="pb-8"
-              >
-                <TabsContent value="map" className="mt-0">
-                  <div className="grid grid-cols-1 gap-6">
-                    <Card className="overflow-hidden">
-                      <CardContent className="p-0">
-                        <div className="h-[70vh]">
-                          <NoiseLevelsMap />
-                        </div>
-                      </CardContent>
-                    </Card>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <NoiseBarChart data={noiseData} />
-                      <NoisePieChart data={noiseData} />
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="analytics" className="mt-0">
-                  <div className="grid grid-cols-1 gap-6">
-                    <NoiseAnalyticsDashboard 
-                      data={noiseData} 
-                      startDate={dateRange.from} 
-                      endDate={dateRange.to} 
-                    />
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <NoiseBarChart data={noiseData} />
-                      <NoiseHeatmapChart data={noiseData} />
-                    </div>
-                  </div>
-                </TabsContent>
-              </motion.div>
-            )}
-          </Tabs>
+            </motion.div>
+          )}
         </div>
       </motion.div>
     </div>

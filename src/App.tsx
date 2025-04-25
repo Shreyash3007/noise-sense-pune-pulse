@@ -1,4 +1,3 @@
-
 import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -19,6 +18,7 @@ const Index = lazy(() => import("./pages/Index"));
 const AnalyticsDashboard = lazy(() => import("./pages/Map"));
 const About = lazy(() => import("./pages/About"));
 const AdminPortal = lazy(() => import("./pages/AdminPortal"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const RecordPage = lazy(() => import("./pages/RecordPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ThemePreview = lazy(() => import("./components/ThemePreview"));
@@ -109,6 +109,7 @@ const App = () => {
                     <Route path="/map" element={<AnalyticsDashboard />} />
                     <Route path="/about" element={<About />} />
                     <Route path="/admin" element={<AdminPortal />} />
+                    <Route path="/admin/login" element={<AdminLogin />} />
                     <Route path="/record" element={<RecordPage />} />
                     <Route path="/theme" element={<ThemePreview />} />
                     <Route path="/analytics" element={<Navigate to="/map" replace />} />
