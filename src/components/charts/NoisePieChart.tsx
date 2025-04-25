@@ -22,7 +22,7 @@ interface NoiseReport {
 }
 
 interface NoisePieChartProps {
-  data: NoiseReport[];
+  data?: NoiseReport[];
   title?: string;
 }
 
@@ -33,7 +33,7 @@ const COLORS = [
   '#ec4899', '#a855f7', '#6366f1', '#3b82f6', '#06b6d4'
 ];
 
-export function NoisePieChart({ data, title = "Noise Distribution" }: NoisePieChartProps) {
+export const NoisePieChart = ({ data = [], title = "Noise Distribution" }: NoisePieChartProps) => {
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
   const [chartView, setChartView] = useState<"type" | "severity">("type");
 
@@ -222,4 +222,6 @@ export function NoisePieChart({ data, title = "Noise Distribution" }: NoisePieCh
       </CardContent>
     </Card>
   );
-} 
+};
+
+export default NoisePieChart;

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   LineChart,
@@ -27,7 +26,7 @@ interface NoiseTimeSeriesData {
   primaryNoiseType: string;
 }
 
-interface NoiseTimeSeriesChartProps {
+export interface NoiseTimeSeriesChartProps {
   title?: string;
   description?: string;
   data: NoiseTimeSeriesData[];
@@ -156,7 +155,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const NoiseTimeSeriesChart: React.FC<NoiseTimeSeriesChartProps> = ({ 
+export const NoiseTimeSeriesChart: React.FC<NoiseTimeSeriesChartProps> = ({ 
   title = "Noise Level Trends", 
   description = "Average and peak noise levels over time",
   data = sampleData,

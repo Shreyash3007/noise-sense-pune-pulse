@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { NoiseLevelsMap } from "@/components/NoiseLevelsMap";
@@ -21,12 +20,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
-// Import the chart components
-import NoiseBarChart from "@/components/charts/NoiseBarChart";
+// Import the chart components with proper exports
+import { NoiseBarChart } from "@/components/charts/NoiseBarChart";
 import NoiseTimeSeriesChart from "@/components/charts/NoiseTimeSeriesChart";
-import NoisePieChart from "@/components/charts/NoisePieChart";
-import NoiseHeatmapChart from "@/components/charts/NoiseHeatmapChart";
-import NoiseAnalyticsDashboard from "@/components/charts/NoiseAnalyticsDashboard";
+import { NoisePieChart } from "@/components/charts/NoisePieChart";
+import { NoiseHeatmapChart } from "@/components/charts/NoiseHeatmapChart";
+import { NoiseAnalyticsDashboard } from "@/components/charts/NoiseAnalyticsDashboard";
 
 const AnalyticsDashboard = () => {
   const [showInfo, setShowInfo] = useState(false);
@@ -480,7 +479,7 @@ const AnalyticsDashboard = () => {
             
             {/* Statistics Tab Content */}
             <TabsContent value="stats">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" ref={statsRef}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" ref={statsViewRef}>
                 <motion.div 
                   className="lg:col-span-2"
                   variants={fadeInUp}
@@ -554,7 +553,7 @@ const AnalyticsDashboard = () => {
                 initial="initial"
                 animate={analyticsViewInView ? "animate" : "initial"}
               >
-                <NoiseAnalyticsDashboard />
+                <NoiseAnalyticsDashboard data={[]} />
               </motion.div>
             </TabsContent>
           </Tabs>

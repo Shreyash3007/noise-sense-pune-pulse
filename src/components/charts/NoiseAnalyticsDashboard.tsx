@@ -1,7 +1,7 @@
-import { NoiseBarChart } from "./NoiseBarChart";
-import { NoiseHeatmapChart } from "./NoiseHeatmapChart";
-import { NoisePieChart } from "./NoisePieChart";
-import { NoiseTimeSeriesChart } from "./NoiseTimeSeriesChart";
+import NoiseBarChart, { NoiseBarChart as NoiseBarChartComponent } from "./NoiseBarChart";
+import NoiseHeatmapChart, { NoiseHeatmapChart as NoiseHeatmapChartComponent } from "./NoiseHeatmapChart";
+import NoisePieChart, { NoisePieChart as NoisePieChartComponent } from "./NoisePieChart";
+import NoiseTimeSeriesChart from "./NoiseTimeSeriesChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,36 +20,31 @@ interface NoiseReport {
 }
 
 interface NoiseAnalyticsDashboardProps {
-  data: NoiseReport[];
+  data?: NoiseReport[];
   loading?: boolean;
   error?: string | null;
 }
 
-export function NoiseAnalyticsDashboard({ 
+export const NoiseAnalyticsDashboard = ({ 
   data = [],
   loading = false,
   error = null
-}: NoiseAnalyticsDashboardProps) {
-  // Generate summary stats
+}: NoiseAnalyticsDashboardProps) => {
   const generateSummaryStats = () => {
     if (data.length === 0) return null;
     
-    // Calculate average decibel level
     const avgDecibel = Math.round(
       data.reduce((sum, report) => sum + report.decibel_level, 0) / data.length
     );
     
-    // Find highest and lowest decibel readings
     const highestDecibel = Math.max(...data.map(report => report.decibel_level));
     const lowestDecibel = Math.min(...data.map(report => report.decibel_level));
     
-    // Count reports by severity level
     const dangerousCount = data.filter(report => report.decibel_level >= 80).length;
     const highCount = data.filter(report => report.decibel_level >= 65 && report.decibel_level < 80).length;
     const moderateCount = data.filter(report => report.decibel_level >= 50 && report.decibel_level < 65).length;
     const lowCount = data.filter(report => report.decibel_level < 50).length;
     
-    // Get most common noise type
     const noiseTypeCounts: Record<string, number> = {};
     data.forEach(report => {
       noiseTypeCounts[report.noise_type] = (noiseTypeCounts[report.noise_type] || 0) + 1;
@@ -73,14 +68,11 @@ export function NoiseAnalyticsDashboard({
 
   const summaryStats = generateSummaryStats();
 
-  // Function to export data as CSV
   const exportDataCSV = () => {
     if (data.length === 0) return;
     
-    // Create CSV headers
     const headers = ["ID", "Latitude", "Longitude", "Decibel Level", "Noise Type", "Date", "Notes"];
     
-    // Map data to CSV rows
     const csvRows = data.map(report => [
       report.id,
       report.latitude,
@@ -91,13 +83,11 @@ export function NoiseAnalyticsDashboard({
       report.notes || ""
     ]);
     
-    // Combine headers and rows
     const csvContent = [
       headers.join(","),
       ...csvRows.map(row => row.join(","))
     ].join("\n");
     
-    // Create a blob and download link
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -109,7 +99,6 @@ export function NoiseAnalyticsDashboard({
     document.body.removeChild(link);
   };
 
-  // Show loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[500px]">
@@ -118,7 +107,6 @@ export function NoiseAnalyticsDashboard({
     );
   }
 
-  // Show error state
   if (error) {
     return (
       <Alert variant="destructive" className="mb-6">
@@ -128,7 +116,6 @@ export function NoiseAnalyticsDashboard({
     );
   }
 
-  // Show empty state
   if (data.length === 0) {
     return (
       <Card className="w-full">
@@ -144,7 +131,6 @@ export function NoiseAnalyticsDashboard({
 
   return (
     <div className="space-y-6">
-      {/* Summary stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardHeader className="pb-2">
@@ -198,7 +184,6 @@ export function NoiseAnalyticsDashboard({
         </Card>
       </div>
 
-      {/* Export data button */}
       <div className="flex justify-end mb-4">
         <Button variant="outline" onClick={exportDataCSV}>
           <FileDown className="mr-2 h-4 w-4" />
@@ -206,14 +191,12 @@ export function NoiseAnalyticsDashboard({
         </Button>
       </div>
 
-      {/* Time Series Chart */}
       <NoiseTimeSeriesChart 
         data={data} 
         title="Noise Level Trends" 
         description="Historical pattern analysis of noise levels over time"
       />
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <NoisePieChart data={data} title="Noise Distribution" />
         <NoiseBarChart data={data} title="Noise Levels Analysis" />
@@ -225,7 +208,6 @@ export function NoiseAnalyticsDashboard({
         description="Heatmap showing noise levels by hour and day of the week"
       />
       
-      {/* Additional statistics */}
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Noise Level Distribution</CardTitle>
@@ -301,4 +283,6 @@ export function NoiseAnalyticsDashboard({
       </Card>
     </div>
   );
-} 
+};
+
+export default NoiseAnalyticsDashboard;

@@ -23,22 +23,20 @@ interface NoiseReport {
 }
 
 interface NoiseHeatmapChartProps {
-  data: NoiseReport[];
+  data?: NoiseReport[];
   title?: string;
   description?: string;
 }
 
-export function NoiseHeatmapChart({ 
-  data, 
+export const NoiseHeatmapChart = ({ 
+  data = [], 
   title = "Noise Time Distribution", 
   description = "Heatmap showing noise levels by hour and day of the week" 
-}: NoiseHeatmapChartProps) {
-  // Process data for the heatmap
+}: NoiseHeatmapChartProps) => {
   const processData = () => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const hours = Array.from({ length: 24 }, (_, i) => i);
     
-    // Create a heatmap grid for each day and hour
     const heatmapData = [];
     
     data.forEach(report => {
@@ -60,7 +58,6 @@ export function NoiseHeatmapChart({
 
   const heatmapData = processData();
 
-  // Color scale based on decibel level
   const getColor = (value: number) => {
     if (value >= 80) return "#ef4444";
     if (value >= 70) return "#f97316";
@@ -69,7 +66,6 @@ export function NoiseHeatmapChart({
     return "#22c55e";
   };
 
-  // Custom tooltip to display data on hover
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
@@ -149,4 +145,6 @@ export function NoiseHeatmapChart({
       </CardContent>
     </Card>
   );
-} 
+};
+
+export default NoiseHeatmapChart;

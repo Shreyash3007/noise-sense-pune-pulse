@@ -23,17 +23,15 @@ interface NoiseReport {
 }
 
 interface NoiseBarChartProps {
-  data: NoiseReport[];
+  data?: NoiseReport[];
   title?: string;
 }
 
-export function NoiseBarChart({ data, title = "Noise Levels by Type" }: NoiseBarChartProps) {
+export const NoiseBarChart = ({ data = [], title = "Noise Levels by Type" }: NoiseBarChartProps) => {
   const [chartView, setChartView] = useState<"type" | "day" | "hour">("type");
 
-  // Process data for different chart views
   const getChartData = () => {
     if (chartView === "type") {
-      // Group by noise type
       const groupedByType: Record<string, { type: string; count: number; avgDecibel: number }> = {};
       
       data.forEach((report) => {
@@ -49,7 +47,6 @@ export function NoiseBarChart({ data, title = "Noise Levels by Type" }: NoiseBar
         groupedByType[report.noise_type].avgDecibel += report.decibel_level;
       });
       
-      // Calculate averages and convert to array
       return Object.values(groupedByType).map(group => ({
         ...group,
         avgDecibel: Math.round(group.avgDecibel / group.count),
@@ -57,11 +54,9 @@ export function NoiseBarChart({ data, title = "Noise Levels by Type" }: NoiseBar
     } 
     
     else if (chartView === "day") {
-      // Group by day of week
       const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const groupedByDay: Record<string, { day: string; count: number; avgDecibel: number }> = {};
       
-      // Initialize all days
       days.forEach(day => {
         groupedByDay[day] = { day, count: 0, avgDecibel: 0 };
       });
@@ -74,7 +69,6 @@ export function NoiseBarChart({ data, title = "Noise Levels by Type" }: NoiseBar
         groupedByDay[day].avgDecibel += report.decibel_level;
       });
       
-      // Calculate averages and convert to array
       return days.map(day => {
         const group = groupedByDay[day];
         return {
@@ -85,10 +79,8 @@ export function NoiseBarChart({ data, title = "Noise Levels by Type" }: NoiseBar
     } 
     
     else if (chartView === "hour") {
-      // Group by hour of day
       const groupedByHour: Record<number, { hour: string; count: number; avgDecibel: number }> = {};
       
-      // Initialize all hours
       for (let i = 0; i < 24; i++) {
         const hourLabel = i.toString().padStart(2, '0') + ":00";
         groupedByHour[i] = { hour: hourLabel, count: 0, avgDecibel: 0 };
@@ -102,7 +94,6 @@ export function NoiseBarChart({ data, title = "Noise Levels by Type" }: NoiseBar
         groupedByHour[hour].avgDecibel += report.decibel_level;
       });
       
-      // Calculate averages and convert to array
       return Object.values(groupedByHour).map(group => ({
         ...group,
         avgDecibel: group.count ? Math.round(group.avgDecibel / group.count) : 0,
@@ -194,4 +185,6 @@ export function NoiseBarChart({ data, title = "Noise Levels by Type" }: NoiseBar
       </CardContent>
     </Card>
   );
-} 
+};
+
+export default NoiseBarChart;
