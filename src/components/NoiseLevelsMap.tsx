@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,11 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { env } from "@/lib/env";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/components/ui/use-toast";
-import { useTheme } from "@/components/ThemeProvider"; // Import theme provider
+import { useTheme } from "@/components/ThemeProvider"; 
 import { BrandedLoader } from "./ui/loading";
 
 // Set Mapbox token - use the actual token value directly to ensure it's always available
-mapboxgl.accessToken = "pk.eyJ1Ijoic2hyZXlhc2gwNDU1MyIsImEiOiJjbTl1MzBiYzUwNHF5MmlzYWIwNGtxcWd3In0.PulE0Yanu2kaNNYPGEgnlw";
+mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN;
 
 interface NoiseReport {
   id: string;
@@ -26,13 +27,15 @@ interface NoiseReport {
   notes?: string;
 }
 
-// Define the GeoJSON feature type for proper typing
+// Define GeoJSON types for better TypeScript type safety
+interface PointGeometry {
+  type: "Point";
+  coordinates: [number, number]; // longitude, latitude
+}
+
 interface NoiseFeature {
   type: "Feature";
-  geometry: {
-    type: "Point";
-    coordinates: [number, number];
-  };
+  geometry: PointGeometry;
   properties: {
     id: string;
     decibel_level: number;
@@ -169,7 +172,7 @@ export const NoiseLevelsMap = () => {
       
       // Ensure Mapbox token is set
       if (!mapboxgl.accessToken) {
-        mapboxgl.accessToken = "pk.eyJ1Ijoic2hyZXlhc2gwNDU1MyIsImEiOiJjbTl1MzBiYzUwNHF5MmlzYWIwNGtxcWd3In0.PulE0Yanu2kaNNYPGEgnlw";
+        mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN;
       }
       
       // Use theme-appropriate map style based on app theme
@@ -181,7 +184,7 @@ export const NoiseLevelsMap = () => {
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: mapStyle,
-        center: [avgLng, avgLat],
+        center: [avgLng, avgLat], // LngLat format for Mapbox
         zoom: 12,
         pitch: 30,
         attributionControl: false,
@@ -203,7 +206,7 @@ export const NoiseLevelsMap = () => {
           type: "Feature",
           geometry: {
             type: "Point",
-            coordinates: [report.longitude, report.latitude]
+            coordinates: [report.longitude, report.latitude] // LngLat format for GeoJSON
           },
           properties: {
             id: report.id,
@@ -304,7 +307,7 @@ export const NoiseLevelsMap = () => {
           const feature = e.features[0] as unknown as NoiseFeature;
           if (!feature.geometry || !feature.geometry.coordinates) return;
           
-          const coordinates = feature.geometry.coordinates.slice() as [number, number];
+          const coordinates: [number, number] = [...feature.geometry.coordinates]; // Make a copy to avoid modification
           const properties = feature.properties;
           
           // Find the report that was clicked
@@ -554,7 +557,7 @@ export const NoiseLevelsMap = () => {
         {renderNoiseTypeFilters()}
         
         <TabsContent value="map" className="mt-0">
-          <div className="bg-gray-50 rounded-lg overflow-hidden transition-all duration-500 ease-in-out shadow-lg">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden transition-all duration-500 ease-in-out shadow-lg">
             {mapError && (
               <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-t-lg flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -575,18 +578,18 @@ export const NoiseLevelsMap = () => {
           </div>
           
           {focusedReport && (
-            <Card className="p-4 mt-4 bg-gray-50 border border-gray-200 shadow animate-fade-in">
+            <Card className="p-4 mt-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow animate-fade-in">
               <div className="flex justify-between">
                 <h3 className="text-lg font-bold">Noise Report Details</h3>
                 <Button variant="ghost" size="sm" onClick={() => setFocusedReport(null)}>Close</Button>
               </div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Recorded on:</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Recorded on:</p>
                   <p>{new Date(focusedReport.created_at).toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Noise Level:</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Noise Level:</p>
                   <p className={`font-bold ${
                     focusedReport.decibel_level >= 80 ? 'text-red-500' : 
                     focusedReport.decibel_level >= 60 ? 'text-amber-500' : 
@@ -594,16 +597,16 @@ export const NoiseLevelsMap = () => {
                   }`}>{focusedReport.decibel_level} dB</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Noise Type:</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Noise Type:</p>
                   <p>{focusedReport.noise_type}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Location:</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Location:</p>
                   <p>{focusedReport.latitude.toFixed(6)}, {focusedReport.longitude.toFixed(6)}</p>
                 </div>
                 {focusedReport.notes && (
                   <div className="col-span-2">
-                    <p className="text-sm text-gray-500">Notes:</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Notes:</p>
                     <p>{focusedReport.notes}</p>
                   </div>
                 )}
@@ -614,25 +617,25 @@ export const NoiseLevelsMap = () => {
         
         <TabsContent value="stats" className="mt-0">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 animate-fade-in">
-            <Card className="p-4 bg-gradient-to-br from-green-50 to-blue-50 shadow">
-              <h3 className="text-sm font-medium text-gray-500">Average Noise Level</h3>
+            <Card className="p-4 bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 shadow">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Average Noise Level</h3>
               <p className="text-3xl font-bold mt-1">{getAverageDecibel()} dB</p>
-              <p className="text-xs text-gray-500 mt-1">Based on {reports?.length || 0} reports</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Based on {reports?.length || 0} reports</p>
             </Card>
             
-            <Card className="p-4 bg-gradient-to-br from-amber-50 to-red-50 shadow">
-              <h3 className="text-sm font-medium text-gray-500">Highest Recorded Level</h3>
+            <Card className="p-4 bg-gradient-to-br from-amber-50 to-red-50 dark:from-amber-900/20 dark:to-red-900/20 shadow">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Highest Recorded Level</h3>
               <p className="text-3xl font-bold mt-1">{getHighestDecibel()} dB</p>
-              <div className="flex items-center text-xs text-amber-800 mt-1">
+              <div className="flex items-center text-xs text-amber-800 dark:text-amber-400 mt-1">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 Exceeds recommended limits
               </div>
             </Card>
             
-            <Card className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 shadow">
-              <h3 className="text-sm font-medium text-gray-500">Total Reports</h3>
+            <Card className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 shadow">
+              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Reports</h3>
               <p className="text-3xl font-bold mt-1">{reports?.length || 0}</p>
-              <p className="text-xs text-gray-500 mt-1">From {timeFilter === "all" ? "all time" : `last ${timeFilter}`}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">From {timeFilter === "all" ? "all time" : `last ${timeFilter}`}</p>
             </Card>
           </div>
           
@@ -649,7 +652,7 @@ export const NoiseLevelsMap = () => {
                           <span>{type}</span>
                           <span className="font-medium">{count} reports ({percentage}%)</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                           <div 
                             className="bg-blue-600 h-2.5 rounded-full" 
                             style={{ width: `${percentage}%` }}

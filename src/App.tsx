@@ -1,3 +1,4 @@
+
 import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,6 +10,7 @@ import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { checkDatabaseConnection } from "./integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import ThemePreview from "./components/ThemePreview";
 
 // Import theme styles
 import "./styles/theme.css";
@@ -88,6 +90,7 @@ const App = () => (
                 <Route path="/about" element={<About />} />
                 <Route path="/admin" element={<AdminPortal />} />
                 <Route path="/record" element={<RecordPage />} />
+                <Route path="/theme" element={<ThemePreview />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
