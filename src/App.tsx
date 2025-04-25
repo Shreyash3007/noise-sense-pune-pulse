@@ -1,26 +1,27 @@
 
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
-import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { checkDatabaseConnection } from "./integrations/supabase/client";
-import { Loader2 } from "lucide-react";
-import ThemePreview from "./components/ThemePreview";
+import LoadingLogo from "./components/LoadingLogo";
+import { AnimatePresence } from "framer-motion";
 
 // Import theme styles
 import "./styles/theme.css";
 
 // Lazy load components for better performance
 const Index = lazy(() => import("./pages/Index"));
-const Map = lazy(() => import("./pages/Map"));
+const AnalyticsDashboard = lazy(() => import("./pages/Map"));
 const About = lazy(() => import("./pages/About"));
 const AdminPortal = lazy(() => import("./pages/AdminPortal"));
 const RecordPage = lazy(() => import("./pages/RecordPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const ThemePreview = lazy(() => import("./components/ThemePreview"));
 
 // Add custom CSS for animations
 import "./App.css";
@@ -42,6 +43,8 @@ checkDatabaseConnection()
   .then(connected => {
     if (!connected) {
       console.warn("Database connection failed. Some features may not work properly.");
+    } else {
+      console.log("Database connection successful.");
     }
   })
   .catch(err => {
@@ -50,8 +53,8 @@ checkDatabaseConnection()
 
 // Loading fallback component
 const LoadingFallback = () => (
-  <div className="flex h-screen w-full items-center justify-center">
-    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  <div className="flex h-screen w-full items-center justify-center bg-background">
+    <LoadingLogo />
   </div>
 );
 
@@ -70,35 +73,56 @@ if (typeof window !== "undefined") {
   });
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider 
-      defaultTheme="dark" 
-      storageKey="noise-sense-theme"
-      attribute="data-theme"
-      value={{ light: "light", dark: "dark" }}
-    >
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <MainLayout>
-            <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/map" element={<Map />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/admin" element={<AdminPortal />} />
-                <Route path="/record" element={<RecordPage />} />
-                <Route path="/theme" element={<ThemePreview />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </MainLayout>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    // Pre-load critical pages after initial render
+    const preloadPages = () => {
+      import("./pages/Map");
+      import("./pages/RecordPage");
+    };
+    
+    // Use requestIdleCallback for non-critical preloading
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(preloadPages);
+    } else {
+      setTimeout(preloadPages, 2000);
+    }
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider 
+        defaultTheme="system" 
+        storageKey="noise-sense-theme"
+        attribute="data-theme"
+        value={{ light: "light", dark: "dark" }}
+      >
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <MainLayout>
+              <AnimatePresence mode="wait">
+                <Suspense fallback={<LoadingFallback />}>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/map" element={<AnalyticsDashboard />} />
+                    <Route path="/about" element={<About />} />
+                    <Route path="/admin" element={<AdminPortal />} />
+                    <Route path="/record" element={<RecordPage />} />
+                    <Route path="/theme" element={<ThemePreview />} />
+                    <Route path="/analytics" element={<Navigate to="/map" replace />} />
+                    <Route path="/dashboard" element={<Navigate to="/map" replace />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </AnimatePresence>
+            </MainLayout>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

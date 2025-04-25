@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
@@ -29,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge";
-import { BarChart, Calendar as CalendarIcon, MapPin, Volume2 } from "lucide-react";
+import { BarChart, CalendarIcon, MapPin, Volume2 } from "lucide-react";
 
 interface NoiseReport {
   id: string;
@@ -188,11 +189,9 @@ const AdminPortal: React.FC = () => {
     return date && typeof date.getTime === 'function';
   };
 
-  const handleDateRangeChange = (dates: Date[]) => {
-    const [start, end] = dates;
-    if (isValidDate(start) && isValidDate(end)) {
-      setDateRange([start, end]);
-    }
+  // Function to handle date range change
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
   };
 
   // Function to apply filters
@@ -226,8 +225,10 @@ const AdminPortal: React.FC = () => {
     <div className="container mx-auto py-10">
       <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle>Admin Portal</CardTitle>
-          <CardDescription>Manage noise reports and data analysis.</CardDescription>
+          <div>
+            <CardTitle>Admin Portal</CardTitle>
+            <CardDescription>Manage noise reports and data analysis.</CardDescription>
+          </div>
           <div className="flex items-center space-x-2">
             <Button variant="outline" onClick={() => setIsFiltersOpen(true)}>
               <BarChart className="mr-2 h-4 w-4" />
@@ -308,12 +309,12 @@ const AdminPortal: React.FC = () => {
 
       {/* Report Details Modal */}
       {isDetailsOpen && reportDetails && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
             <div className="mt-3 text-center">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Report Details</h3>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Report Details</h3>
               <div className="px-7 py-3">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-300">
                   <strong>Date:</strong> {new Date(reportDetails.created_at).toLocaleDateString()}
                   <br />
                   <strong>Location:</strong> {reportDetails.latitude}, {reportDetails.longitude}
@@ -337,10 +338,10 @@ const AdminPortal: React.FC = () => {
 
       {/* Edit Report Modal */}
       {isEditMode && editedReport && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
             <div className="mt-3 text-center">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Edit Report</h3>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Edit Report</h3>
               <div className="px-7 py-3">
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
@@ -409,12 +410,12 @@ const AdminPortal: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {isDeleteConfirmationOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
             <div className="mt-3 text-center">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Confirmation</h3>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Confirmation</h3>
               <div className="px-7 py-3">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-300">
                   Are you sure you want to delete this report?
                 </p>
               </div>
@@ -433,10 +434,10 @@ const AdminPortal: React.FC = () => {
 
       {/* Filters Modal */}
       {isFiltersOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
             <div className="mt-3 text-center">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">Filters</h3>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Filters</h3>
               <div className="px-7 py-3">
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
@@ -480,7 +481,7 @@ const AdminPortal: React.FC = () => {
                       id="location_filter_latitude"
                       placeholder="Latitude"
                       value={locationFilter?.latitude?.toString() || ""}
-                      onChange={(e) => setLocationFilter({ ...locationFilter, latitude: parseFloat(e.target.value) })}
+                      onChange={(e) => setLocationFilter({ ...locationFilter || { latitude: 0, longitude: 0, radius: 0 }, latitude: parseFloat(e.target.value) })}
                     />
                     <Label htmlFor="location_filter_longitude">Location (Longitude)</Label>
                     <Input
@@ -488,7 +489,7 @@ const AdminPortal: React.FC = () => {
                       id="location_filter_longitude"
                       placeholder="Longitude"
                       value={locationFilter?.longitude?.toString() || ""}
-                      onChange={(e) => setLocationFilter({ ...locationFilter, longitude: parseFloat(e.target.value) })}
+                      onChange={(e) => setLocationFilter({ ...locationFilter || { latitude: 0, longitude: 0, radius: 0 }, longitude: parseFloat(e.target.value) })}
                     />
                     <Label htmlFor="location_filter_radius">Radius (meters)</Label>
                     <Input
@@ -496,7 +497,7 @@ const AdminPortal: React.FC = () => {
                       id="location_filter_radius"
                       placeholder="Radius"
                       value={locationFilter?.radius?.toString() || ""}
-                      onChange={(e) => setLocationFilter({ ...locationFilter, radius: parseFloat(e.target.value) })}
+                      onChange={(e) => setLocationFilter({ ...locationFilter || { latitude: 0, longitude: 0, radius: 0 }, radius: parseFloat(e.target.value) })}
                     />
                   </div>
                   <div className="flex items-center space-x-2">

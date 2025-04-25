@@ -1,11 +1,8 @@
+
 import { ReactNode, useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Volume2, MapPin, InfoIcon, Lock, Menu, X, Activity, BarChart2, Waves } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import ThemeToggle from "@/components/ThemeToggle";
+import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import NoiseSenseLogo from '@/components/NoiseSenseLogo';
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -14,59 +11,61 @@ interface MainLayoutProps {
 }
 
 const MainLayout = ({ children }: MainLayoutProps) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const location = useLocation();
 
+  // Set up page transition animations
   useEffect(() => {
-    // Close mobile menu when route changes
-    setIsMenuOpen(false);
+    // Reset scroll position on route change
+    window.scrollTo(0, 0);
+    
+    // Mark page as loaded for animations
+    const timer = setTimeout(() => {
+      setIsLoaded(true);
+    }, 200);
+    
+    return () => clearTimeout(timer);
   }, [location.pathname]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
-    };
-    
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Check if link is active
-  const isActive = (path: string) => location.pathname === path;
-  
-  // Logo animation variants
-  const logoVariants = {
-    hover: {
-      scale: 1.05,
-      transition: { 
-        duration: 0.3,
-        yoyo: Infinity,
-        ease: "easeInOut"
-      }
-    }
-  };
-  
-  // Wave animation variants for the logo
-  const waveVariants = {
+  // Page transition variants
+  const pageVariants = {
+    initial: {
+      opacity: 0,
+      y: 20,
+    },
     animate: {
-      opacity: [0.3, 0.6, 0.3],
-      scale: [0.8, 1, 0.8],
+      opacity: 1,
+      y: 0,
       transition: {
-        repeat: Infinity,
-        duration: 2,
-        ease: "easeInOut"
+        duration: 0.4,
+        ease: "easeOut"
+      }
+    },
+    exit: {
+      opacity: 0,
+      y: -20,
+      transition: {
+        duration: 0.3,
+        ease: "easeIn"
       }
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-50 transition-colors duration-200">
-      {/* Use the Header component instead of duplicating navigation */}
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-50 transition-colors duration-200">
+      {/* Header with navigation */}
       <Header />
       
-      {/* Main content area */}
-      <main className="pt-20 flex-grow">{children}</main>
+      {/* Main content area with page transitions */}
+      <motion.main 
+        className="flex-grow pt-16"
+        initial="initial"
+        animate={isLoaded ? "animate" : "initial"}
+        exit="exit"
+        variants={pageVariants}
+      >
+        {children}
+      </motion.main>
       
       {/* Footer component */}
       <Footer />

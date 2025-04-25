@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+
+import React, { useState } from "react";
 import {
   LineChart,
   Line,
@@ -8,515 +9,490 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  ReferenceLine,
   Area,
-  AreaChart,
   ComposedChart,
-  Bar,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button } from "@/components/ui/button";
-import { BadgePlus, BarChart, Calendar, Download, LineChart as LineChartIcon } from "lucide-react";
+import { Volume2, ZoomIn, ZoomOut, Calendar } from "lucide-react";
 
-interface NoiseReport {
-  id: string;
-  latitude: number;
-  longitude: number;
-  decibel_level: number;
-  noise_type: string;
-  created_at: string;
-  notes?: string;
+interface NoiseTimeSeriesData {
+  time: string;
+  avgLevel: number;
+  maxLevel: number;
+  minLevel: number;
+  range: number;
+  count: number;
+  primaryNoiseType: string;
 }
 
 interface NoiseTimeSeriesChartProps {
-  data: NoiseReport[];
   title?: string;
   description?: string;
+  data: NoiseTimeSeriesData[];
+  height?: number;
+  showTimeRanges?: boolean;
+  showLegend?: boolean;
+  timeFormat?: "hourly" | "daily" | "weekly" | "monthly";
 }
 
-export function NoiseTimeSeriesChart({ 
-  data, 
-  title = "Noise Level Trends", 
-  description = "Time series analysis of noise levels" 
-}: NoiseTimeSeriesChartProps) {
-  const [timeRange, setTimeRange] = useState<"daily" | "weekly" | "monthly">("daily");
-  const [chartType, setChartType] = useState<"line" | "area" | "bar" | "composed">("area");
-  const [loading, setLoading] = useState(false);
+const sampleData: NoiseTimeSeriesData[] = [
+  {
+    time: "2024-07-15 06:00",
+    avgLevel: 58,
+    maxLevel: 72,
+    minLevel: 45,
+    range: 27,
+    count: 12,
+    primaryNoiseType: "Traffic",
+  },
+  {
+    time: "2024-07-15 09:00",
+    avgLevel: 65,
+    maxLevel: 85,
+    minLevel: 48,
+    range: 37,
+    count: 25,
+    primaryNoiseType: "Traffic",
+  },
+  {
+    time: "2024-07-15 12:00",
+    avgLevel: 63,
+    maxLevel: 79,
+    minLevel: 52,
+    range: 27,
+    count: 18,
+    primaryNoiseType: "Construction",
+  },
+  {
+    time: "2024-07-15 15:00",
+    avgLevel: 68,
+    maxLevel: 88,
+    minLevel: 55,
+    range: 33,
+    count: 22,
+    primaryNoiseType: "Construction",
+  },
+  {
+    time: "2024-07-15 18:00",
+    avgLevel: 72,
+    maxLevel: 95,
+    minLevel: 58,
+    range: 37,
+    count: 30,
+    primaryNoiseType: "Music",
+  },
+  {
+    time: "2024-07-15 21:00",
+    avgLevel: 75,
+    maxLevel: 101,
+    minLevel: 60,
+    range: 41,
+    count: 28,
+    primaryNoiseType: "Music",
+  },
+  {
+    time: "2024-07-16 00:00",
+    avgLevel: 62,
+    maxLevel: 85,
+    minLevel: 50,
+    range: 35,
+    count: 15,
+    primaryNoiseType: "Traffic",
+  },
+  {
+    time: "2024-07-16 03:00",
+    avgLevel: 54,
+    maxLevel: 68,
+    minLevel: 42,
+    range: 26,
+    count: 8,
+    primaryNoiseType: "Traffic",
+  },
+];
+
+const formatTime = (time: string, format: "hourly" | "daily" | "weekly" | "monthly") => {
+  const date = new Date(time);
   
-  // Process data for the time series chart
-  const processData = () => {
-    if (!data || data.length === 0) return [];
-    
-    // Sort data by date
-    const sortedData = [...data].sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  switch (format) {
+    case "hourly":
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    case "daily":
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    case "weekly":
+      return `W${Math.ceil(date.getDate() / 7)} ${date.toLocaleDateString([], { month: 'short' })}`;
+    case "monthly":
+      return date.toLocaleDateString([], { month: 'short', year: '2-digit' });
+    default:
+      return time;
+  }
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-md shadow-md">
+        <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={`item-${index}`} className="text-sm" style={{ color: entry.color }}>
+            {`${entry.name}: ${entry.value} ${entry.name.includes("Level") ? "dB" : ""}`}
+          </p>
+        ))}
+        {payload[0]?.payload?.primaryNoiseType && (
+          <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+            Main source: {payload[0].payload.primaryNoiseType}
+          </p>
+        )}
+        {payload[0]?.payload?.count && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Reports: {payload[0].payload.count}
+          </p>
+        )}
+      </div>
     );
-    
-    // Group data based on selected time range
-    if (timeRange === "daily") {
-      // Group by hour of day
-      const hourlyData: Record<number, { time: string, avgLevel: number, count: number, maxLevel: number, minLevel: number, noiseTypes: Record<string, number> }> = {};
-      
-      // Initialize hours
-      for (let i = 0; i < 24; i++) {
-        hourlyData[i] = { 
-          time: `${i}:00`, 
-          avgLevel: 0, 
-          count: 0,
-          maxLevel: 0,
-          minLevel: 200, // Start with a high number to find minimum
-          noiseTypes: {}
-        };
-      }
-      
-      // Process data
-      sortedData.forEach(report => {
-        const hour = new Date(report.created_at).getHours();
-        hourlyData[hour].avgLevel += report.decibel_level;
-        hourlyData[hour].count += 1;
-        hourlyData[hour].maxLevel = Math.max(hourlyData[hour].maxLevel, report.decibel_level);
-        hourlyData[hour].minLevel = Math.min(hourlyData[hour].minLevel, report.decibel_level);
-        
-        // Track noise types
-        const noiseType = report.noise_type;
-        hourlyData[hour].noiseTypes[noiseType] = (hourlyData[hour].noiseTypes[noiseType] || 0) + 1;
-      });
-      
-      // Calculate averages
-      return Object.values(hourlyData).map(hourData => ({
-        time: hourData.time,
-        avgLevel: hourData.count > 0 ? Math.round(hourData.avgLevel / hourData.count) : 0,
-        maxLevel: hourData.maxLevel || 0,
-        minLevel: hourData.minLevel < 200 ? hourData.minLevel : 0,
-        range: hourData.maxLevel - (hourData.minLevel < 200 ? hourData.minLevel : 0),
-        count: hourData.count,
-        // Get most common noise type
-        primaryNoiseType: Object.entries(hourData.noiseTypes).sort((a, b) => b[1] - a[1])[0]?.[0] || "None"
-      }));
-    } 
-    else if (timeRange === "weekly") {
-      // Group by day of week
-      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const dailyData: Record<string, { day: string, avgLevel: number, count: number, maxLevel: number, minLevel: number, noiseTypes: Record<string, number> }> = {};
-      
-      // Initialize days
-      days.forEach(day => {
-        dailyData[day] = { day, avgLevel: 0, count: 0, maxLevel: 0, minLevel: 200, noiseTypes: {} };
-      });
-      
-      // Process data
-      sortedData.forEach(report => {
-        const day = days[new Date(report.created_at).getDay()];
-        dailyData[day].avgLevel += report.decibel_level;
-        dailyData[day].count += 1;
-        dailyData[day].maxLevel = Math.max(dailyData[day].maxLevel, report.decibel_level);
-        dailyData[day].minLevel = Math.min(dailyData[day].minLevel, report.decibel_level);
-        
-        // Track noise types
-        const noiseType = report.noise_type;
-        dailyData[day].noiseTypes[noiseType] = (dailyData[day].noiseTypes[noiseType] || 0) + 1;
-      });
-      
-      // Return in correct order with calculated averages
-      return days.map(day => ({
-        time: day,
-        avgLevel: dailyData[day].count > 0 ? Math.round(dailyData[day].avgLevel / dailyData[day].count) : 0,
-        maxLevel: dailyData[day].maxLevel || 0,
-        minLevel: dailyData[day].minLevel < 200 ? dailyData[day].minLevel : 0,
-        range: dailyData[day].maxLevel - (dailyData[day].minLevel < 200 ? dailyData[day].minLevel : 0),
-        count: dailyData[day].count,
-        primaryNoiseType: Object.entries(dailyData[day].noiseTypes).sort((a, b) => b[1] - a[1])[0]?.[0] || "None"
-      }));
-    }
-    else if (timeRange === "monthly") {
-      // Group by month
-      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const monthlyData: Record<string, { month: string, avgLevel: number, count: number, maxLevel: number, minLevel: number, noiseTypes: Record<string, number> }> = {};
-      
-      // Initialize months
-      months.forEach(month => {
-        monthlyData[month] = { month, avgLevel: 0, count: 0, maxLevel: 0, minLevel: 200, noiseTypes: {} };
-      });
-      
-      // Process data
-      sortedData.forEach(report => {
-        const month = months[new Date(report.created_at).getMonth()];
-        monthlyData[month].avgLevel += report.decibel_level;
-        monthlyData[month].count += 1;
-        monthlyData[month].maxLevel = Math.max(monthlyData[month].maxLevel, report.decibel_level);
-        monthlyData[month].minLevel = Math.min(monthlyData[month].minLevel, report.decibel_level);
-        
-        // Track noise types
-        const noiseType = report.noise_type;
-        monthlyData[month].noiseTypes[noiseType] = (monthlyData[month].noiseTypes[noiseType] || 0) + 1;
-      });
-      
-      // Return data for all months
-      return months.map(month => ({
-        time: month,
-        avgLevel: monthlyData[month].count > 0 ? Math.round(monthlyData[month].avgLevel / monthlyData[month].count) : 0,
-        maxLevel: monthlyData[month].maxLevel || 0,
-        minLevel: monthlyData[month].minLevel < 200 ? monthlyData[month].minLevel : 0,
-        range: monthlyData[month].maxLevel - (monthlyData[month].minLevel < 200 ? monthlyData[month].minLevel : 0),
-        count: monthlyData[month].count,
-        primaryNoiseType: Object.entries(monthlyData[month].noiseTypes).sort((a, b) => b[1] - a[1])[0]?.[0] || "None"
-      }));
-    }
-    
-    return [];
-  };
-
-  const chartData = processData();
+  }
   
-  // Calculate safe noise threshold
-  const safeNoiseThreshold = 70;
+  return null;
+};
+
+const NoiseTimeSeriesChart: React.FC<NoiseTimeSeriesChartProps> = ({ 
+  title = "Noise Level Trends", 
+  description = "Average and peak noise levels over time",
+  data = sampleData,
+  height = 350,
+  showTimeRanges = true,
+  showLegend = true,
+  timeFormat = "hourly"
+}) => {
+  const [zoom, setZoom] = useState(1);
+  const [activeView, setActiveView] = useState<"line" | "area" | "full">("line");
+  const [activePeriod, setActivePeriod] = useState<"hourly" | "daily" | "weekly" | "monthly">(timeFormat);
   
-  // Simulate data update
-  useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [timeRange, chartType]);
-
-  const renderChart = () => {
-    switch(chartType) {
-      case "line":
-        return (
-          <LineChart
-            data={chartData}
-            margin={{
-              top: 20,
-              right: 30,
-              left: 20,
-              bottom: 30,
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis 
-              dataKey="time" 
-              className="text-xs fill-gray-500 dark:fill-gray-400"
-            />
-            <YAxis 
-              domain={[0, 'dataMax + 10']}
-              className="fill-gray-500 dark:fill-gray-400"
-              label={{ 
-                value: "Decibel Level (dB)", 
-                angle: -90, 
-                position: "insideLeft",
-                className: "fill-gray-500 dark:fill-gray-400" 
-              }}
-            />
-            <Tooltip 
-              contentStyle={{
-                backgroundColor: "rgba(255, 255, 255, 0.9)",
-                borderColor: "#d1d5db",
-                borderRadius: "0.375rem",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-              }}
-              formatter={(value: number, name: string) => [
-                `${value} ${name === "avgLevel" ? "dB" : name === "count" ? "reports" : ""}`, 
-                name === "avgLevel" ? "Avg. Noise Level" : name === "maxLevel" ? "Max Level" : name === "minLevel" ? "Min Level" : "Report Count"
-              ]}
-            />
-            <Legend />
-            <ReferenceLine 
-              y={safeNoiseThreshold} 
-              stroke="#ef4444" 
-              strokeDasharray="3 3"
-              label={{ 
-                value: "Safe Threshold", 
-                position: "right", 
-                className: "fill-red-500 dark:fill-red-400 text-xs" 
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="avgLevel"
-              name="Average Noise Level"
-              stroke="#8884d8"
-              strokeWidth={2}
-              activeDot={{ r: 6 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="maxLevel"
-              name="Max Level"
-              stroke="#ff7300"
-              strokeWidth={1.5}
-              strokeDasharray="5 5"
-              activeDot={{ r: 4 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="minLevel"
-              name="Min Level"
-              stroke="#82ca9d"
-              strokeWidth={1.5}
-              strokeDasharray="5 5"
-              activeDot={{ r: 4 }}
-            />
-          </LineChart>
-        );
-      case "area":
-        return (
-          <AreaChart
-            data={chartData}
-            margin={{
-              top: 20,
-              right: 30,
-              left: 20,
-              bottom: 30,
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis 
-              dataKey="time" 
-              className="text-xs fill-gray-500 dark:fill-gray-400"
-            />
-            <YAxis 
-              domain={[0, 'dataMax + 10']}
-              className="fill-gray-500 dark:fill-gray-400"
-              label={{ 
-                value: "Decibel Level (dB)", 
-                angle: -90, 
-                position: "insideLeft",
-                className: "fill-gray-500 dark:fill-gray-400" 
-              }}
-            />
-            <Tooltip 
-              contentStyle={{
-                backgroundColor: "rgba(255, 255, 255, 0.9)",
-                borderColor: "#d1d5db",
-                borderRadius: "0.375rem",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-              }}
-              formatter={(value: number) => [`${value} dB`, "Avg. Noise Level"]}
-            />
-            <Legend />
-            <ReferenceLine 
-              y={safeNoiseThreshold} 
-              stroke="#ef4444" 
-              strokeDasharray="3 3"
-              label={{ 
-                value: "Safe Threshold", 
-                position: "right", 
-                className: "fill-red-500 dark:fill-red-400 text-xs" 
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="avgLevel"
-              name="Average Noise Level"
-              stroke="#8884d8"
-              fill="url(#colorGradient)"
-              strokeWidth={2}
-              activeDot={{ r: 6 }}
-            />
-            <defs>
-              <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#8884d8" stopOpacity={0.1}/>
-              </linearGradient>
-            </defs>
-          </AreaChart>
-        );
-      case "bar":
-        return (
-          <BarChart
-            data={chartData}
-            margin={{
-              top: 20,
-              right: 30,
-              left: 20,
-              bottom: 30,
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis 
-              dataKey="time" 
-              className="text-xs fill-gray-500 dark:fill-gray-400"
-            />
-            <YAxis 
-              domain={[0, 'dataMax + 10']}
-              className="fill-gray-500 dark:fill-gray-400"
-              label={{ 
-                value: "Decibel Level (dB)", 
-                angle: -90, 
-                position: "insideLeft",
-                className: "fill-gray-500 dark:fill-gray-400" 
-              }}
-            />
-            <Tooltip 
-              contentStyle={{
-                backgroundColor: "rgba(255, 255, 255, 0.9)",
-                borderColor: "#d1d5db",
-                borderRadius: "0.375rem",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-              }}
-              formatter={(value: number) => [`${value} dB`, "Avg. Noise Level"]}
-            />
-            <Legend />
-            <ReferenceLine 
-              y={safeNoiseThreshold} 
-              stroke="#ef4444" 
-              strokeDasharray="3 3"
-              label={{ 
-                value: "Safe Threshold", 
-                position: "right", 
-                className: "fill-red-500 dark:fill-red-400 text-xs" 
-              }}
-            />
-            <Bar 
-              dataKey="avgLevel" 
-              name="Average Noise Level" 
-              fill="#8884d8" 
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        );
-      case "composed":
-        return (
-          <ComposedChart
-            data={chartData}
-            margin={{
-              top: 20,
-              right: 30,
-              left: 20,
-              bottom: 30,
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-            <XAxis 
-              dataKey="time" 
-              className="text-xs fill-gray-500 dark:fill-gray-400"
-            />
-            <YAxis 
-              domain={[0, 'dataMax + 10']}
-              className="fill-gray-500 dark:fill-gray-400"
-              label={{ 
-                value: "Decibel Level (dB)", 
-                angle: -90, 
-                position: "insideLeft",
-                className: "fill-gray-500 dark:fill-gray-400" 
-              }}
-            />
-            <YAxis 
-              yAxisId="right" 
-              orientation="right" 
-              domain={[0, 'auto']}
-              className="fill-gray-500 dark:fill-gray-400"
-            />
-            <Tooltip 
-              contentStyle={{
-                backgroundColor: "rgba(255, 255, 255, 0.9)",
-                borderColor: "#d1d5db",
-                borderRadius: "0.375rem",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-              }}
-              formatter={(value: number, name: string) => [
-                `${value} ${name === "count" ? "reports" : "dB"}`, 
-                name === "count" ? "Report Count" : name === "avgLevel" ? "Avg. Noise Level" : "Range (Max-Min)"
-              ]}
-            />
-            <Legend />
-            <ReferenceLine 
-              y={safeNoiseThreshold} 
-              stroke="#ef4444" 
-              strokeDasharray="3 3"
-              label={{ 
-                value: "Safe Threshold", 
-                position: "right", 
-                className: "fill-red-500 dark:fill-red-400 text-xs" 
-              }}
-            />
-            <Bar 
-              dataKey="range" 
-              barSize={20} 
-              fill="#8884d8" 
-              opacity={0.3}
-              name="Range (Max-Min)"
-              radius={[4, 4, 0, 0]}
-            />
-            <Line
-              type="monotone"
-              dataKey="avgLevel"
-              stroke="#8884d8"
-              name="Average Noise Level"
-              strokeWidth={2}
-              activeDot={{ r: 6 }}
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="count"
-              stroke="#82ca9d"
-              name="Report Count"
-              strokeWidth={1.5}
-            />
-          </ComposedChart>
-        );
-      default:
-        return null;
-    }
+  const processedData = data.map(item => ({
+    ...item,
+    formattedTime: formatTime(item.time, activePeriod)
+  }));
+  
+  const handleZoomIn = () => {
+    if (zoom < 2) setZoom(zoom + 0.25);
   };
-
+  
+  const handleZoomOut = () => {
+    if (zoom > 0.5) setZoom(zoom - 0.25);
+  };
+  
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </div>
-        <div className="flex items-center space-x-2">
-          <ToggleGroup type="single" value={chartType} onValueChange={(value) => value && setChartType(value as any)}>
-            <ToggleGroupItem value="area" aria-label="Area Chart">
-              <AreaChart className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="line" aria-label="Line Chart">
-              <LineChartIcon className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="bar" aria-label="Bar Chart">
-              <BarChart className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="composed" aria-label="Composed Chart">
-              <BadgePlus className="h-4 w-4" />
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <Select
-            value={timeRange}
-            onValueChange={(value) => setTimeRange(value as "daily" | "weekly" | "monthly")}
-          >
-            <SelectTrigger className="w-[140px] h-8">
-              <SelectValue placeholder="Time Range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily (24h)</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <Download className="h-4 w-4" />
-          </Button>
+    <Card className="w-full overflow-hidden">
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle className="text-xl flex items-center">
+              <Volume2 className="mr-2 h-5 w-5 text-primary" />
+              {title}
+            </CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          <div className="flex space-x-1">
+            <Button variant="outline" size="icon" onClick={handleZoomIn}>
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={handleZoomOut}>
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon">
+              <Calendar className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="h-[350px] w-full relative">
-          {loading && (
-            <div className="absolute inset-0 bg-white/50 dark:bg-gray-900/50 flex items-center justify-center z-10">
-              <div className="h-10 w-10 border-4 border-t-purple-600 border-gray-200 rounded-full animate-spin"></div>
+      <CardContent className="p-0">
+        <Tabs value={activeView} onValueChange={(value) => setActiveView(value as "line" | "area" | "full")}>
+          <div className="pl-6 border-b">
+            <TabsList>
+              <TabsTrigger value="line">Line Chart</TabsTrigger>
+              <TabsTrigger value="area">Area Chart</TabsTrigger>
+              <TabsTrigger value="full">Full Data</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="line" className="p-4">
+            <div style={{ width: '100%', height: height * zoom }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={processedData}
+                  margin={{
+                    top: 10,
+                    right: 30,
+                    left: 20,
+                    bottom: 30,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                  <XAxis 
+                    dataKey="formattedTime" 
+                    tick={{ fontSize: 12 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                    className="text-gray-600 dark:text-gray-300"
+                  />
+                  <YAxis 
+                    yAxisId="left"
+                    domain={['dataMin - 5', 'dataMax + 5']}
+                    label={{ 
+                      value: 'Decibel (dB)', 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { textAnchor: 'middle' },
+                      className: "fill-gray-600 dark:fill-gray-300"
+                    }}
+                    tick={{ fontSize: 12 }}
+                    className="text-gray-600 dark:text-gray-300"
+                  />
+                  {showTimeRanges && (
+                    <YAxis 
+                      yAxisId="right" 
+                      orientation="right" 
+                      tick={{ fontSize: 12 }} 
+                      domain={[0, 'dataMax + 10']}
+                      className="text-gray-600 dark:text-gray-300"
+                    />
+                  )}
+                  <Tooltip content={<CustomTooltip />} />
+                  {showLegend && <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />}
+                  <Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="avgLevel" 
+                    name="Avg Level" 
+                    stroke="#8B5CF6" 
+                    strokeWidth={2}
+                    dot={{ r: 3 }} 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="maxLevel" 
+                    name="Max Level" 
+                    stroke="#EC4899" 
+                    strokeWidth={2} 
+                    dot={{ r: 3 }} 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    strokeDasharray="3 3"
+                  />
+                  {showTimeRanges && (
+                    <Line 
+                      yAxisId="right"
+                      type="monotone" 
+                      dataKey="count" 
+                      name="Reports" 
+                      stroke="#14B8A6" 
+                      strokeWidth={2}
+                      dot={{ r: 3 }} 
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-          )}
-          <ResponsiveContainer width="100%" height="100%">
-            {renderChart()}
-          </ResponsiveContainer>
-        </div>
+          </TabsContent>
+          <TabsContent value="area" className="p-4">
+            <div style={{ width: '100%', height: height * zoom }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={processedData}
+                  margin={{
+                    top: 10,
+                    right: 30,
+                    left: 20,
+                    bottom: 30,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                  <XAxis 
+                    dataKey="formattedTime" 
+                    tick={{ fontSize: 12 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                    className="text-gray-600 dark:text-gray-300"
+                  />
+                  <YAxis 
+                    domain={['dataMin - 5', 'dataMax + 5']}
+                    label={{ 
+                      value: 'Decibel (dB)', 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { textAnchor: 'middle' },
+                      className: "fill-gray-600 dark:fill-gray-300"
+                    }}
+                    tick={{ fontSize: 12 }}
+                    className="text-gray-600 dark:text-gray-300"
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  {showLegend && <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />}
+                  <Area 
+                    type="monotone" 
+                    dataKey="minLevel" 
+                    name="Min Level" 
+                    fill="#8B5CF6" 
+                    stroke="#8B5CF6" 
+                    fillOpacity={0.1} 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="avgLevel" 
+                    name="Avg Level" 
+                    fill="#8B5CF6" 
+                    stroke="#8B5CF6" 
+                    fillOpacity={0.3} 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="maxLevel" 
+                    name="Max Level" 
+                    fill="#EC4899" 
+                    stroke="#EC4899"
+                    fillOpacity={0.3} 
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="avgLevel"
+                    name="Avg Level"
+                    stroke="#8B5CF6"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </TabsContent>
+          <TabsContent value="full" className="p-4">
+            <div style={{ width: '100%', height: height * zoom }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={processedData}
+                  margin={{
+                    top: 10,
+                    right: 30,
+                    left: 20,
+                    bottom: 30,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                  <XAxis 
+                    dataKey="formattedTime" 
+                    tick={{ fontSize: 12 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                    className="text-gray-600 dark:text-gray-300"
+                  />
+                  <YAxis 
+                    yAxisId="left"
+                    domain={['dataMin - 5', 'dataMax + 5']}
+                    label={{ 
+                      value: 'Decibel (dB)', 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { textAnchor: 'middle' },
+                      className: "fill-gray-600 dark:fill-gray-300"
+                    }}
+                    tick={{ fontSize: 12 }}
+                    className="text-gray-600 dark:text-gray-300"
+                  />
+                  <YAxis 
+                    yAxisId="right" 
+                    orientation="right" 
+                    tick={{ fontSize: 12 }} 
+                    domain={[0, 'dataMax + 10']}
+                    className="text-gray-600 dark:text-gray-300"
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  {showLegend && <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />}
+                  <Area 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="minLevel" 
+                    name="Min Level" 
+                    fill="#8B5CF6" 
+                    stroke="#8B5CF6" 
+                    fillOpacity={0.1} 
+                  />
+                  <Area 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="maxLevel" 
+                    name="Max Level" 
+                    fill="#EC4899" 
+                    stroke="#EC4899"
+                    fillOpacity={0.2} 
+                  />
+                  <Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="avgLevel" 
+                    name="Avg Level" 
+                    stroke="#8B5CF6" 
+                    strokeWidth={2.5} 
+                    dot={{ r: 3 }} 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Line 
+                    yAxisId="right"
+                    type="monotone" 
+                    dataKey="count" 
+                    name="Reports" 
+                    stroke="#14B8A6" 
+                    strokeWidth={2}
+                    dot={{ r: 3 }} 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
+      <CardFooter className="pt-2 pb-4 px-6">
+        <div className="flex w-full justify-between items-center">
+          <div className="flex space-x-1">
+            <Button 
+              size="sm" 
+              variant={activePeriod === "hourly" ? "default" : "outline"} 
+              onClick={() => setActivePeriod("hourly")}
+            >
+              Hourly
+            </Button>
+            <Button 
+              size="sm" 
+              variant={activePeriod === "daily" ? "default" : "outline"}
+              onClick={() => setActivePeriod("daily")}
+            >
+              Daily
+            </Button>
+            <Button 
+              size="sm" 
+              variant={activePeriod === "weekly" ? "default" : "outline"}
+              onClick={() => setActivePeriod("weekly")}
+            >
+              Weekly
+            </Button>
+            <Button 
+              size="sm" 
+              variant={activePeriod === "monthly" ? "default" : "outline"}
+              onClick={() => setActivePeriod("monthly")}
+            >
+              Monthly
+            </Button>
+          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Data updated hourly</span>
+        </div>
+      </CardFooter>
     </Card>
   );
-}
+};
+
+export default NoiseTimeSeriesChart;

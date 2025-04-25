@@ -1,41 +1,102 @@
+
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="240" fill="url(#paint0_radial)" stroke="#8B5CF6" stroke-width="6"/>
-  
-  <!-- Sound waves emanating from center -->
-  <path d="M256 128C267.046 128 276 136.954 276 148C276 159.046 267.046 168 256 168C244.954 168 236 159.046 236 148C236 136.954 244.954 128 256 128Z" fill="#8B5CF6"/>
-  
-  <!-- Sound waves -->
-  <path d="M256 88C219.549 88 190 117.549 190 154V358C190 394.451 219.549 424 256 424C292.451 424 322 394.451 322 358V154C322 117.549 292.451 88 256 88ZM256 108C281.346 108 302 128.654 302 154V358C302 383.346 281.346 404 256 404C230.654 404 210 383.346 210 358V154C210 128.654 230.654 108 256 108Z" fill="#8B5CF6"/>
+  <!-- Background circle with gradient -->
+  <circle cx="256" cy="256" r="240" fill="url(#paint0_radial)" stroke="#8B5CF6" stroke-width="6">
+    <animate attributeName="opacity" values="0.9;1;0.9" dur="3s" repeatCount="indefinite" />
+  </circle>
   
   <!-- Outer sound wave rings -->
-  <circle cx="256" cy="256" r="160" stroke="#8B5CF6" stroke-width="6" stroke-dasharray="15 15" opacity="0.6"/>
-  <circle cx="256" cy="256" r="190" stroke="#8B5CF6" stroke-width="4" stroke-dasharray="10 10" opacity="0.4"/>
-  <circle cx="256" cy="256" r="220" stroke="#8B5CF6" stroke-width="3" stroke-dasharray="8 8" opacity="0.3"/>
+  <circle cx="256" cy="256" r="180" stroke="#8B5CF6" stroke-width="3" stroke-dasharray="12 12" opacity="0.4">
+    <animate attributeName="r" values="160;180;160" dur="8s" repeatCount="indefinite" />
+    <animate attributeName="stroke-dasharray" values="5 12;12 12;5 12" dur="10s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.2;0.4;0.2" dur="5s" repeatCount="indefinite" />
+  </circle>
   
-  <!-- Pune city skyline silhouette -->
-  <path d="M80 350H432V390H80V350Z" fill="#6D28D9"/>
-  <path d="M120 350V300H140V350H120Z" fill="#6D28D9"/>
-  <path d="M150 350V320H160V310H170V350H150Z" fill="#6D28D9"/>
-  <path d="M180 350V290H185V280H195V290H200V350H180Z" fill="#6D28D9"/>
-  <path d="M210 350V310H225V300H240V310H255V350H210Z" fill="#6D28D9"/>
-  <path d="M265 350V280H275V270H285V260H295V270H305V280H315V350H265Z" fill="#6D28D9"/>
-  <path d="M325 350V320H335V310H345V300H355V310H365V320H375V350H325Z" fill="#6D28D9"/>
-  <path d="M385 350V290H395V280H405V350H385Z" fill="#6D28D9"/>
+  <circle cx="256" cy="256" r="140" stroke="#8B5CF6" stroke-width="4" stroke-dasharray="10 10" opacity="0.6">
+    <animate attributeName="r" values="120;140;120" dur="6s" repeatCount="indefinite" />
+    <animate attributeName="stroke-dasharray" values="5 10;10 10;5 10" dur="8s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.4;0.6;0.4" dur="4s" repeatCount="indefinite" />
+  </circle>
   
-  <!-- Pulse wave -->
-  <path d="M100 288L140 248L175 288L215 208L255 308L295 238L335 288L370 188L410 288" stroke="#EC4899" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="100" stroke="#8B5CF6" stroke-width="5" stroke-dasharray="8 8" opacity="0.8">
+    <animate attributeName="r" values="90;100;90" dur="4s" repeatCount="indefinite" />
+    <animate attributeName="stroke-dasharray" values="4 8;8 8;4 8" dur="6s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.6;0.8;0.6" dur="3s" repeatCount="indefinite" />
+  </circle>
+  
+  <!-- Sound wave patterns -->
+  <path d="M 156,256 Q 256,156 356,256" stroke="#8B5CF6" stroke-width="8" fill="none" stroke-linecap="round">
+    <animate attributeName="d" values="M 156,256 Q 256,156 356,256; M 156,256 Q 256,166 356,256; M 156,256 Q 256,156 356,256" dur="3s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" />
+  </path>
+  
+  <path d="M 156,256 Q 256,356 356,256" stroke="#8B5CF6" stroke-width="8" fill="none" stroke-linecap="round">
+    <animate attributeName="d" values="M 156,256 Q 256,356 356,256; M 156,256 Q 256,346 356,256; M 156,256 Q 256,356 356,256" dur="3s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" />
+  </path>
+  
+  <!-- Middle ring with ambient waves -->
+  <circle cx="256" cy="256" r="60" stroke="#8B5CF6" stroke-width="6" fill="none" opacity="0.9">
+    <animate attributeName="r" values="55;60;55" dur="3s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.7;0.9;0.7" dur="2s" repeatCount="indefinite" />
+  </circle>
+  
+  <path d="M 196,256 Q 256,196 316,256" stroke="#EC4899" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7">
+    <animate attributeName="d" values="M 196,256 Q 256,196 316,256; M 196,256 Q 256,206 316,256; M 196,256 Q 256,196 316,256" dur="2s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.5;0.7;0.5" dur="1.5s" repeatCount="indefinite" />
+  </path>
+  
+  <path d="M 196,256 Q 256,316 316,256" stroke="#EC4899" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7">
+    <animate attributeName="d" values="M 196,256 Q 256,316 316,256; M 196,256 Q 256,306 316,256; M 196,256 Q 256,316 316,256" dur="2s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.5;0.7;0.5" dur="1.5s" repeatCount="indefinite" />
+  </path>
+  
+  <!-- Center dot/pulse -->
+  <circle cx="256" cy="256" r="15" fill="#8B5CF6">
+    <animate attributeName="r" values="12;15;12" dur="1.5s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="1s" repeatCount="indefinite" />
+  </circle>
+  
+  <!-- Location Marker Lines -->
+  <path d="M 256,256 L 256,200" stroke="#8B5CF6" stroke-width="6" stroke-linecap="round">
+    <animate attributeName="opacity" values="0.7;1;0.7" dur="2s" repeatCount="indefinite" />
+  </path>
+  
+  <path d="M 256,256 L 312,256" stroke="#8B5CF6" stroke-width="6" stroke-linecap="round">
+    <animate attributeName="opacity" values="0.7;1;0.7" dur="2s" repeatCount="indefinite" delay="0.5" />
+  </path>
+  
+  <!-- Sound visualization pulse wave -->
+  <path d="M 130 310 L 150 270 L 170 300 L 190 240 L 210 290 L 230 260 L 250 310 L 270 250 L 290 290 L 310 230 L 330 290 L 350 270 L 370 310" 
+        stroke="#EC4899" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.8">
+    <animate attributeName="stroke-dasharray" values="0,1000;1000,0" dur="2s" fill="freeze" />
+    <animate attributeName="opacity" values="0.6;0.8;0.6" dur="3s" begin="1s" repeatCount="indefinite" />
+  </path>
+  
+  <!-- City silhouette -->
+  <path d="M150 350H370V370H150V350Z M170 350V330H180V350H170Z M190 350V335H195V330H200V335H205V350H190Z M215 350V325H225V320H235V325H245V350H215Z M255 350V320H265V315H270V310H275V315H280V320H290V350H255Z M300 350V335H310V330H320V350H300Z M330 350V325H340V320H350V350H330Z" 
+        fill="#6D28D9" opacity="0.7">
+    <animate attributeName="opacity" values="0.5;0.7;0.5" dur="3s" repeatCount="indefinite" />
+  </path>
   
   <!-- Text: "NOISE SENSE" -->
-  <text x="256" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="24" fill="#8B5CF6">NOISE SENSE</text>
-  <text x="256" y="455" text-anchor="middle" font-family="Arial, sans-serif" font-style="italic" font-size="18" fill="#6D28D9">PUNE PULSE</text>
+  <text x="256" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="34" fill="#8B5CF6">
+    NOISE SENSE
+    <animate attributeName="opacity" values="0.9;1;0.9" dur="2s" repeatCount="indefinite" />
+  </text>
   
   <!-- Gradients -->
   <defs>
     <radialGradient id="paint0_radial" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(240)">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="0.8" stop-color="#F5F3FF"/>
-      <stop offset="1" stop-color="#EDE9FE"/>
+      <stop stop-color="#FFFFFF">
+        <animate attributeName="stop-color" values="#FFFFFF;#F5F3FF;#FFFFFF" dur="5s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="0.8" stop-color="#F5F3FF">
+        <animate attributeName="stop-color" values="#F5F3FF;#EDE9FE;#F5F3FF" dur="5s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="1" stop-color="#EDE9FE">
+        <animate attributeName="stop-color" values="#EDE9FE;#DDD6FE;#EDE9FE" dur="5s" repeatCount="indefinite" />
+      </stop>
     </radialGradient>
   </defs>
-</svg> 
+</svg>
