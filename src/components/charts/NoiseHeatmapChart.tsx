@@ -1,3 +1,4 @@
+
 import {
   ResponsiveContainer,
   ScatterChart,
@@ -22,7 +23,7 @@ interface NoiseReport {
   notes?: string;
 }
 
-interface NoiseHeatmapChartProps {
+export interface NoiseHeatmapChartProps {
   data?: NoiseReport[];
   title?: string;
   description?: string;

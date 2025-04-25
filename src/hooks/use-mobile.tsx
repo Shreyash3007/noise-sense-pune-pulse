@@ -19,7 +19,6 @@ export function useIsMobile() {
   return !!isMobile
 }
 
-// Adding the previously missing useMediaQuery function
 export function useMediaQuery(query: string) {
   const [matches, setMatches] = React.useState<boolean>(false)
 
