@@ -6,6 +6,14 @@ A crowdsourced noise pollution monitoring application for Pune city.
 
 Noise Sense enables citizens of Pune to report noise pollution using their smartphone microphones. The app collects, analyzes, and visualizes noise pollution data to help government officials identify causes, patterns, and potential solutions for urban noise issues.
 
+## Recent Updates
+
+- **Advanced Analytics Dashboard**: Added AI-powered analytics with predictive modeling for noise patterns
+- **Improved UI/UX**: Enhanced user interface with better accessibility and responsive design
+- **Performance Optimization**: Reduced load times and improved application efficiency
+- **Bug Fixes**: Resolved issues with report submission and data visualization
+- **Admin Portal Enhancements**: Added new tools for government officials to manage noise reports
+
 ## Features
 
 - **Anonymous Noise Reporting**: Easily measure and report noise pollution
