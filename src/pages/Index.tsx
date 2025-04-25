@@ -7,12 +7,10 @@ import NoiseRecorder from "@/components/NoiseRecorder";
 import { 
   Volume2, 
   Headphones, 
-  AlertTriangle, 
   MapPin, 
   BarChart2, 
   ArrowRight, 
   Activity, 
-  Info, 
   Mic, 
   MapIcon, 
   Heart, 
@@ -24,15 +22,15 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "@/components/ui/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { NoiseLevelsMap } from "@/components/NoiseLevelsMap";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import NoiseSenseLogo from "@/components/NoiseSenseLogo";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const LandingPage = () => {
   const [isLoaded, setIsLoaded] = useState(false);
+  const isMobile = useIsMobile();
   const { scrollYProgress } = useScroll();
   
   // Parallax and scroll-based animations
@@ -144,7 +142,7 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex flex-col min-h-screen bg-background">
       {/* Hero Section with animated background and recorder */}
       <motion.section 
         className="min-h-screen bg-gradient-to-br from-purple-600 via-purple-500 to-blue-600 text-white relative overflow-hidden flex items-center"
@@ -205,15 +203,15 @@ const LandingPage = () => {
                 transition={{ duration: 0.6, delay: 0.6 }}
               >
                 <Link to="/map">
-                  <Button size="lg" className="w-full sm:w-auto bg-white text-purple-700 hover:bg-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
-                    <MapPin className="mr-2 h-5 w-5" />
-                    View Noise Map
+                  <Button size="lg" className="w-full sm:w-auto bg-white text-purple-700 hover:bg-gray-100 hover:scale-105 transition-all duration-300 shadow-lg">
+                    <BarChart2 className="mr-2 h-5 w-5" />
+                    Analytics Dashboard
                   </Button>
                 </Link>
-                <Link to="/admin">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto text-white border-white hover:bg-white/10 backdrop-blur-sm">
-                    <BarChart2 className="mr-2 h-5 w-5" />
-                    Dashboard
+                <Link to="/record">
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto text-white border-white hover:bg-white/10 backdrop-blur-sm hover:scale-105 transition-all duration-300">
+                    <Mic className="mr-2 h-5 w-5" />
+                    Record Noise
                   </Button>
                 </Link>
               </motion.div>
@@ -226,10 +224,10 @@ const LandingPage = () => {
               >
                 <button 
                   onClick={scrollToContent}
-                  className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors mx-auto lg:mx-0"
+                  className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors mx-auto lg:mx-0 group"
                 >
                   <span>Scroll to learn more</span>
-                  <ChevronDown className="h-4 w-4 animate-bounce" />
+                  <ChevronDown className="h-4 w-4 animate-bounce group-hover:animate-pulse" />
                 </button>
               </motion.div>
             </div>
@@ -241,7 +239,7 @@ const LandingPage = () => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
-              <Card className="bg-white/10 backdrop-blur-md p-5 rounded-xl border border-white/20 shadow-xl">
+              <Card className="bg-white/10 backdrop-blur-md p-5 rounded-xl border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-300">
                 <NoiseRecorder />
               </Card>
             </motion.div>
@@ -251,7 +249,7 @@ const LandingPage = () => {
 
       {/* Stats Section */}
       <motion.section 
-        className="py-16 bg-white dark:bg-gray-900"
+        className="py-16 bg-background"
         ref={statsRef}
       >
         <div className="container mx-auto px-4">
@@ -263,7 +261,7 @@ const LandingPage = () => {
           >
             <Badge className="mb-4" variant="outline">Our Impact</Badge>
             <h2 className="text-3xl md:text-4xl font-bold">Making Cities Quieter</h2>
-            <p className="text-gray-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto">
+            <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">
               Our growing network of noise monitors is helping create awareness and drive positive change.
             </p>
           </motion.div>
@@ -275,63 +273,69 @@ const LandingPage = () => {
             animate={statsInView ? "visible" : "hidden"}
           >
             <motion.div 
-              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-100 dark:border-gray-700 text-center"
+              className="bg-card rounded-lg p-6 shadow-md border border-border text-center hover:shadow-lg transition-all duration-300"
               variants={fadeIn}
               custom={0}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <h3 className="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Total Reports</h3>
+              <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-1">Total Reports</h3>
               <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{stats?.totalReports.toLocaleString() || "0"}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Measurements collected</p>
+              <p className="text-sm text-muted-foreground mt-1">Measurements collected</p>
             </motion.div>
             
             <motion.div 
-              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-100 dark:border-gray-700 text-center"
+              className="bg-card rounded-lg p-6 shadow-md border border-border text-center hover:shadow-lg transition-all duration-300"
               variants={fadeIn}
               custom={1}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <h3 className="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Average Level</h3>
+              <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-1">Average Level</h3>
               <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{stats?.avgLevel || "0"} dB</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Average noise level</p>
+              <p className="text-sm text-muted-foreground mt-1">Average noise level</p>
             </motion.div>
             
             <motion.div 
-              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-100 dark:border-gray-700 text-center"
+              className="bg-card rounded-lg p-6 shadow-md border border-border text-center hover:shadow-lg transition-all duration-300"
               variants={fadeIn}
               custom={2}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <h3 className="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Recent Activity</h3>
+              <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-1">Recent Activity</h3>
               <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{stats?.recentReports || "0"}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Reports in 24 hours</p>
+              <p className="text-sm text-muted-foreground mt-1">Reports in 24 hours</p>
             </motion.div>
             
             <motion.div 
-              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-100 dark:border-gray-700 text-center"
+              className="bg-card rounded-lg p-6 shadow-md border border-border text-center hover:shadow-lg transition-all duration-300"
               variants={fadeIn}
               custom={3}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <h3 className="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Active Users</h3>
+              <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-1">Active Users</h3>
               <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{stats?.activeUsers || "0"}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Monthly contributors</p>
+              <p className="text-sm text-muted-foreground mt-1">Monthly contributors</p>
             </motion.div>
             
             <motion.div 
-              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-100 dark:border-gray-700 text-center"
+              className="bg-card rounded-lg p-6 shadow-md border border-border text-center hover:shadow-lg transition-all duration-300"
               variants={fadeIn}
               custom={4}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <h3 className="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Cities</h3>
+              <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-1">Cities</h3>
               <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{stats?.citiesCount || "0"}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Across the country</p>
+              <p className="text-sm text-muted-foreground mt-1">Across the country</p>
             </motion.div>
             
             <motion.div 
-              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-100 dark:border-gray-700 text-center"
+              className="bg-card rounded-lg p-6 shadow-md border border-border text-center hover:shadow-lg transition-all duration-300"
               variants={fadeIn}
               custom={5}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <h3 className="text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Noise Reduction</h3>
+              <h3 className="text-sm uppercase tracking-wider text-muted-foreground mb-1">Noise Reduction</h3>
               <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{stats?.noiseReduction || "0%"}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">In mapped hotspots</p>
+              <p className="text-sm text-muted-foreground mt-1">In mapped hotspots</p>
             </motion.div>
           </motion.div>
         </div>
@@ -339,7 +343,7 @@ const LandingPage = () => {
 
       {/* Map Preview Section */}
       <motion.section 
-        className="py-16 bg-gray-50 dark:bg-gray-950 overflow-hidden"
+        className="py-16 bg-accent/20"
         initial={{ opacity: 0 }}
         animate={isLoaded ? { opacity: 1 } : { opacity: 0 }}
       >
@@ -352,16 +356,19 @@ const LandingPage = () => {
           >
             <Badge className="mb-4" variant="outline">Real-Time Data</Badge>
             <h2 className="text-3xl md:text-4xl font-bold">Interactive Noise Map</h2>
-            <p className="text-gray-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto">
+            <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">
               Visualize noise pollution hotspots with our interactive heatmap. Identify patterns and problem areas.
             </p>
           </motion.div>
           
           <motion.div 
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-4 max-w-5xl mx-auto overflow-hidden border border-gray-100 dark:border-gray-700"
+            className="bg-card rounded-lg shadow-xl p-4 max-w-5xl mx-auto overflow-hidden border border-border"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
+            whileHover={{ 
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+            }}
           >
             <div className="h-96 relative rounded-md overflow-hidden">
               <NoiseLevelsMap />
@@ -375,10 +382,10 @@ const LandingPage = () => {
             transition={{ duration: 0.5, delay: 0.6 }}
           >
             <Link to="/map">
-              <Button className="bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-lg transition-all duration-200">
+              <Button className="bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-lg transition-all duration-300 group">
                 <MapIcon className="mr-2 h-5 w-5" />
-                Explore Full Noise Map
-                <ArrowRight className="ml-2 h-5 w-5" />
+                Explore Analytics Dashboard
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </Link>
           </motion.div>
@@ -387,7 +394,7 @@ const LandingPage = () => {
 
       {/* Features Section */}
       <motion.section 
-        className="py-16 bg-white dark:bg-gray-900"
+        className="py-16 bg-background"
         ref={featuresRef}
       >
         <div className="container mx-auto px-4">
@@ -399,7 +406,7 @@ const LandingPage = () => {
           >
             <Badge className="mb-4" variant="outline">Features</Badge>
             <h2 className="text-3xl md:text-4xl font-bold">How We're Tackling Noise Pollution</h2>
-            <p className="text-gray-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto">
+            <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">
               Our platform combines mobile technology, data science, and community involvement to address urban noise challenges.
             </p>
           </motion.div>
@@ -413,7 +420,7 @@ const LandingPage = () => {
             {features.map((feature, index) => (
               <motion.div 
                 key={feature.title}
-                className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 shadow-md border border-gray-100 dark:border-gray-700"
+                className="bg-card rounded-lg p-6 shadow-md border border-border hover:shadow-lg transition-all duration-300"
                 variants={fadeIn}
                 custom={index}
                 whileHover={{ y: -5, transition: { duration: 0.2 } }}
@@ -422,7 +429,7 @@ const LandingPage = () => {
                   {feature.icon}
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-gray-600 dark:text-gray-400">{feature.description}</p>
+                <p className="text-muted-foreground">{feature.description}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -431,7 +438,7 @@ const LandingPage = () => {
 
       {/* How It Works Section */}
       <motion.section 
-        className="py-16 bg-gray-50 dark:bg-gray-950"
+        className="py-16 bg-accent/20"
         ref={howItWorksRef}
       >
         <div className="container mx-auto px-4">
@@ -443,7 +450,7 @@ const LandingPage = () => {
           >
             <Badge className="mb-4" variant="outline">Process</Badge>
             <h2 className="text-3xl md:text-4xl font-bold">How It Works</h2>
-            <p className="text-gray-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto">
+            <p className="text-muted-foreground mt-4 max-w-2xl mx-auto">
               Join our community effort to map noise pollution in just a few simple steps.
             </p>
           </motion.div>
@@ -458,15 +465,16 @@ const LandingPage = () => {
               className="relative"
               variants={fadeIn}
               custom={0}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-100 dark:border-gray-700 h-full">
+              <div className="bg-card rounded-lg p-6 shadow-md border border-border h-full hover:shadow-lg transition-all duration-300">
                 <div className="flex justify-center mb-6">
                   <div className="bg-purple-100 dark:bg-purple-900/30 rounded-full w-16 h-16 flex items-center justify-center text-2xl font-bold text-purple-600 dark:text-purple-400">
                     1
                   </div>
                 </div>
                 <h3 className="text-xl font-semibold mb-4 text-center">Record</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-center">
+                <p className="text-muted-foreground text-center">
                   Use our app to measure noise levels in your area. Just press record and let your device do the work.
                 </p>
               </div>
@@ -477,15 +485,16 @@ const LandingPage = () => {
               className="relative"
               variants={fadeIn}
               custom={1}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-100 dark:border-gray-700 h-full">
+              <div className="bg-card rounded-lg p-6 shadow-md border border-border h-full hover:shadow-lg transition-all duration-300">
                 <div className="flex justify-center mb-6">
                   <div className="bg-blue-100 dark:bg-blue-900/30 rounded-full w-16 h-16 flex items-center justify-center text-2xl font-bold text-blue-600 dark:text-blue-400">
                     2
                   </div>
                 </div>
                 <h3 className="text-xl font-semibold mb-4 text-center">Submit</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-center">
+                <p className="text-muted-foreground text-center">
                   Add details about the noise source and submit your report to our database.
                 </p>
               </div>
@@ -495,15 +504,16 @@ const LandingPage = () => {
             <motion.div 
               variants={fadeIn}
               custom={2}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-100 dark:border-gray-700 h-full">
+              <div className="bg-card rounded-lg p-6 shadow-md border border-border h-full hover:shadow-lg transition-all duration-300">
                 <div className="flex justify-center mb-6">
                   <div className="bg-green-100 dark:bg-green-900/30 rounded-full w-16 h-16 flex items-center justify-center text-2xl font-bold text-green-600 dark:text-green-400">
                     3
                   </div>
                 </div>
                 <h3 className="text-xl font-semibold mb-4 text-center">Impact</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-center">
+                <p className="text-muted-foreground text-center">
                   Your data contributes to noise maps that help identify problems and inform policy changes.
                 </p>
               </div>
@@ -517,9 +527,10 @@ const LandingPage = () => {
             transition={{ duration: 0.6, delay: 0.6 }}
           >
             <Link to="/record">
-              <Button className="bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-lg transition-all duration-200">
+              <Button className="bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-lg transition-all duration-300 group">
                 <Mic className="mr-2 h-5 w-5" />
                 Start Recording
+                <ArrowRight className="ml-2 h-5 w-5 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
               </Button>
             </Link>
           </motion.div>
@@ -552,15 +563,15 @@ const LandingPage = () => {
             
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Link to="/record">
-                <Button size="lg" className="bg-white text-purple-700 hover:bg-gray-100 shadow-lg hover:shadow-xl transition-all duration-300">
+                <Button size="lg" className="bg-white text-purple-700 hover:bg-gray-100 hover:scale-105 shadow-lg hover:shadow-xl transition-all duration-300">
                   <Mic className="mr-2 h-5 w-5" />
                   Start Recording
                 </Button>
               </Link>
-              <Link to="/about">
-                <Button size="lg" variant="outline" className="text-white border-white hover:bg-white/10">
-                  <Info className="mr-2 h-5 w-5" />
-                  Learn More
+              <Link to="/map">
+                <Button size="lg" className="bg-transparent border-2 border-white text-white hover:bg-white/10 hover:scale-105 transition-all duration-300">
+                  <BarChart2 className="mr-2 h-5 w-5" />
+                  View Analytics
                 </Button>
               </Link>
             </div>

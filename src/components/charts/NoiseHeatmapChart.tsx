@@ -1,4 +1,5 @@
 
+import React from "react";
 import {
   ResponsiveContainer,
   ScatterChart,
@@ -13,7 +14,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-interface NoiseReport {
+export interface NoiseReport {
   id: string;
   latitude: number;
   longitude: number;
@@ -26,13 +27,11 @@ interface NoiseReport {
 export interface NoiseHeatmapChartProps {
   data?: NoiseReport[];
   title?: string;
-  description?: string;
 }
 
 export const NoiseHeatmapChart = ({ 
   data = [], 
-  title = "Noise Time Distribution", 
-  description = "Heatmap showing noise levels by hour and day of the week" 
+  title = "Noise Time Distribution" 
 }: NoiseHeatmapChartProps) => {
   const processData = () => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -71,7 +70,7 @@ export const NoiseHeatmapChart = ({
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-white dark:bg-gray-800 p-2 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+        <div className="bg-card p-3 border border-border rounded-md shadow-lg">
           <p className="font-medium">{data.day} at {data.hour}:00</p>
           <p className="text-sm">Noise Level: <span className="font-medium">{data.value} dB</span></p>
           <p className="text-sm">Type: <span className="font-medium">{data.type}</span></p>
@@ -83,65 +82,71 @@ export const NoiseHeatmapChart = ({
   };
 
   return (
-    <Card className="w-full">
+    <Card className="w-full hover:shadow-lg transition-all duration-300">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardDescription>Showing noise levels by hour and day of the week</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[500px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart
-              margin={{
-                top: 20,
-                right: 20,
-                bottom: 60,
-                left: 20,
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
-              <XAxis 
-                dataKey="hour" 
-                name="Hour" 
-                type="number"
-                domain={[0, 23]}
-                tickFormatter={(hour) => `${hour}:00`}
-                label={{ 
-                  value: "Hour of Day", 
-                  position: "insideBottom", 
-                  offset: -10,
-                  className: "fill-gray-500 dark:fill-gray-400" 
+          {heatmapData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart
+                margin={{
+                  top: 20,
+                  right: 20,
+                  bottom: 60,
+                  left: 20,
                 }}
-                className="fill-gray-500 dark:fill-gray-400"
-              />
-              <YAxis 
-                dataKey="dayIndex" 
-                name="Day" 
-                type="number"
-                domain={[0, 6]}
-                tickFormatter={(day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]}
-                label={{ 
-                  value: "Day of Week", 
-                  angle: -90, 
-                  position: "insideLeft",
-                  className: "fill-gray-500 dark:fill-gray-400" 
-                }}
-                className="fill-gray-500 dark:fill-gray-400"
-              />
-              <ZAxis
-                dataKey="value"
-                range={[50, 400]}
-                name="Decibel Level"
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              <Scatter name="Noise Reports" data={heatmapData} fill="#8884d8">
-                {heatmapData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={getColor(entry.value)} />
-                ))}
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
+              >
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis 
+                  dataKey="hour" 
+                  name="Hour" 
+                  type="number"
+                  domain={[0, 23]}
+                  tickFormatter={(hour) => `${hour}:00`}
+                  label={{ 
+                    value: "Hour of Day", 
+                    position: "insideBottom", 
+                    offset: -10,
+                    className: "fill-muted-foreground" 
+                  }}
+                  className="text-muted-foreground"
+                />
+                <YAxis 
+                  dataKey="dayIndex" 
+                  name="Day" 
+                  type="number"
+                  domain={[0, 6]}
+                  tickFormatter={(day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]}
+                  label={{ 
+                    value: "Day of Week", 
+                    angle: -90, 
+                    position: "insideLeft",
+                    className: "fill-muted-foreground" 
+                  }}
+                  className="text-muted-foreground"
+                />
+                <ZAxis
+                  dataKey="value"
+                  range={[50, 400]}
+                  name="Decibel Level"
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                <Scatter name="Noise Reports" data={heatmapData} fill="#8884d8">
+                  {heatmapData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={getColor(entry.value)} />
+                  ))}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-muted-foreground">No data available</p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

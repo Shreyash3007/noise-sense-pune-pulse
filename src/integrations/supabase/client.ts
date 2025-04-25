@@ -33,3 +33,55 @@ export const checkDatabaseConnection = async () => {
     return false;
   }
 };
+
+// Add the missing fetchNoiseLevels function
+export const fetchNoiseLevels = async (
+  fromDate?: Date, 
+  toDate?: Date, 
+  noiseType?: string, 
+  severityLevel?: string
+) => {
+  try {
+    let query = supabase.from('noise_reports').select('*');
+    
+    // Add date filters if provided
+    if (fromDate) {
+      query = query.gte('created_at', fromDate.toISOString());
+    }
+    if (toDate) {
+      query = query.lte('created_at', toDate.toISOString());
+    }
+    
+    // Add noise type filter if provided and not 'all'
+    if (noiseType && noiseType !== 'all') {
+      query = query.eq('noise_type', noiseType);
+    }
+    
+    // Add severity filter if provided and not 'all'
+    if (severityLevel && severityLevel !== 'all') {
+      switch (severityLevel) {
+        case 'low':
+          query = query.lt('decibel_level', 60);
+          break;
+        case 'medium':
+          query = query.gte('decibel_level', 60).lt('decibel_level', 80);
+          break;
+        case 'high':
+          query = query.gte('decibel_level', 80);
+          break;
+      }
+    }
+    
+    // Order by created_at
+    query = query.order('created_at', { ascending: false });
+    
+    const { data, error } = await query;
+    
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching noise levels:', error);
+    return [];
+  }
+};

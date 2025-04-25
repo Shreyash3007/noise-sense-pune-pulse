@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -138,16 +137,10 @@ const AnalyticsDashboard = () => {
   
   const fadeTransform = useTransform(scrollYProgress, [0, 0.2], [0, 1]);
   
-  // Fetch noise level data
   const { data: noiseData, isLoading, isError, refetch } = useQuery({
     queryKey: ['noise-levels', dateRange, noiseType, severity],
     queryFn: async () => {
       try {
-        // Replace with actual API call when ready
-        // const data = await fetchNoiseLevels(dateRange.from, dateRange.to, noiseType, severity);
-        // return data;
-        
-        // Using mock data for now
         return mockNoiseReports;
       } catch (error) {
         console.error("Error fetching noise data:", error);
@@ -156,7 +149,6 @@ const AnalyticsDashboard = () => {
     },
   });
 
-  // Function to handle data refresh
   const handleRefresh = () => {
     refetch();
     toast({
@@ -165,12 +157,10 @@ const AnalyticsDashboard = () => {
     });
   };
 
-  // Handle tab change
   const handleTabChange = (value: string) => {
     setActiveTab(value);
   };
 
-  // Format date for display
   const formatDate = (date: Date | undefined) => {
     if (!date) return "";
     return format(date, "PPP");
@@ -306,7 +296,6 @@ const AnalyticsDashboard = () => {
                         </div>
                         
                         <Button className="w-full" onClick={() => {
-                          // Apply filters
                           refetch();
                         }}>
                           Apply Filters
@@ -356,12 +345,12 @@ const AnalyticsDashboard = () => {
                     <Card className="overflow-hidden">
                       <CardContent className="p-0">
                         <div className="h-[70vh]">
-                          <NoiseLevelsMap noiseData={noiseData} dateRange={dateRange} />
+                          <NoiseLevelsMap />
                         </div>
                       </CardContent>
                     </Card>
                     
-                    <div ref={statsRef} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <NoiseBarChart data={noiseData} />
                       <NoisePieChart data={noiseData} />
                     </div>

@@ -1,17 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { 
-  Volume2, 
-  MapPin, 
-  InfoIcon, 
-  Activity, 
-  BarChart2, 
-  Menu, 
-  X,
-  Mic,
-  User
-} from "lucide-react";
+import { Volume2, MapPin, Info, Activity, BarChart2, Menu, X, Mic, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,17 +14,14 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { useMediaQuery } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-  const isMobile = useMediaQuery("(max-width: 768px)");
+  const isMobile = useIsMobile();
   
   const isActive = (path: string) => location.pathname === path;
 
@@ -47,113 +34,20 @@ export function Header() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname]);
+
   const mainNavItems = [
     { label: "Home", path: "/", icon: <Volume2 className="h-4 w-4 mr-2" /> },
-    { label: "Analytics Dashboard", path: "/map", icon: <BarChart2 className="h-4 w-4 mr-2" /> },
-    { label: "Record Noise", path: "/record", icon: <Mic className="h-4 w-4 mr-2" /> },
-    { label: "About", path: "/about", icon: <InfoIcon className="h-4 w-4 mr-2" /> },
+    { label: "Analytics", path: "/map", icon: <BarChart2 className="h-4 w-4 mr-2" /> },
+    { label: "Record", path: "/record", icon: <Mic className="h-4 w-4 mr-2" /> },
+    { label: "About", path: "/about", icon: <Info className="h-4 w-4 mr-2" /> },
+    { label: "Admin", path: "/admin", icon: <User className="h-4 w-4 mr-2" /> },
   ];
 
-  const adminItems = [
-    { label: "Admin Portal", path: "/admin", icon: <User className="h-4 w-4 mr-2" /> },
-  ];
-
-  // Desktop navigation rendering function
-  const renderDesktopNav = () => (
-    <div className="hidden md:flex items-center space-x-1">
-      <NavigationMenu>
-        <NavigationMenuList>
-          {/* Main Navigation Items */}
-          <NavigationMenuItem>
-            <NavigationMenuTrigger>Navigation</NavigationMenuTrigger>
-            <NavigationMenuContent>
-              <ul className="grid gap-3 p-4 md:w-[400px] lg:w-[500px] lg:grid-cols-2">
-                {mainNavItems.map(item => (
-                  <li key={item.path}>
-                    <NavigationMenuLink asChild>
-                      <Link
-                        to={item.path}
-                        className={cn(
-                          "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                          isActive(item.path) && "bg-accent/50"
-                        )}
-                      >
-                        <div className="flex items-center">
-                          {item.icon}
-                          <span className="text-sm font-medium">{item.label}</span>
-                        </div>
-                        {item.path === "/map" && (
-                          <div className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                            View real-time noise data across the city with interactive visualizations.
-                          </div>
-                        )}
-                        {item.path === "/record" && (
-                          <div className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                            Contribute to noise monitoring by recording sound levels in your area.
-                          </div>
-                        )}
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
-                ))}
-              </ul>
-            </NavigationMenuContent>
-          </NavigationMenuItem>
-
-          {/* Admin Navigation Items */}
-          <NavigationMenuItem>
-            <NavigationMenuTrigger className="bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30">Admin</NavigationMenuTrigger>
-            <NavigationMenuContent>
-              <ul className="grid gap-3 p-4 w-[200px]">
-                {adminItems.map(item => (
-                  <li key={item.path}>
-                    <NavigationMenuLink asChild>
-                      <Link
-                        to={item.path}
-                        className={cn(
-                          "block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                          isActive(item.path) && "bg-accent/50"
-                        )}
-                      >
-                        <div className="flex items-center">
-                          {item.icon}
-                          <span className="text-sm font-medium">{item.label}</span>
-                        </div>
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
-                ))}
-              </ul>
-            </NavigationMenuContent>
-          </NavigationMenuItem>
-        </NavigationMenuList>
-      </NavigationMenu>
-
-      {/* Also show some direct links for commonly accessed pages */}
-      <Tabs defaultValue={location.pathname} className="hidden lg:flex ml-4">
-        <TabsList className="bg-transparent">
-          {mainNavItems.map(item => (
-            <TabsTrigger 
-              key={item.path} 
-              value={item.path}
-              className={cn(
-                "data-[state=active]:bg-accent/50 transition-all duration-300",
-                isActive(item.path) && "bg-accent/50"
-              )}
-              asChild
-            >
-              <Link to={item.path} className="flex items-center gap-2">
-                {item.icon}
-                {item.label}
-              </Link>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
-    </div>
-  );
-
-  // Mobile navigation menu rendering function
+  // Mobile navigation rendering function
   const renderMobileNav = () => (
     <AnimatePresence>
       {isMenuOpen && (
@@ -162,9 +56,9 @@ export function Header() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 top-16 bg-white dark:bg-gray-900 p-4 md:hidden z-50"
+          className="fixed inset-0 top-16 bg-background/95 backdrop-blur-md p-4 md:hidden z-50"
         >
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-2 pt-4">
             {mainNavItems.map(item => (
               <Link
                 key={item.path}
@@ -172,60 +66,30 @@ export function Header() {
                 className={cn(
                   "flex items-center py-3 px-4 rounded-md transition-colors",
                   isActive(item.path) 
-                    ? "bg-accent text-accent-foreground" 
-                    : "hover:bg-accent/50 hover:text-accent-foreground"
+                    ? "bg-primary/10 text-primary font-medium" 
+                    : "hover:bg-accent/80 hover:text-accent-foreground"
                 )}
-                onClick={() => setIsMenuOpen(false)}
               >
                 {item.icon}
                 <span>{item.label}</span>
               </Link>
             ))}
-            <div className="border-t dark:border-gray-800 my-2 pt-2">
-              <h3 className="text-sm text-muted-foreground mb-2 px-4">Admin</h3>
-              {adminItems.map(item => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn(
-                    "flex items-center py-3 px-4 rounded-md transition-colors",
-                    isActive(item.path) 
-                      ? "bg-accent text-accent-foreground" 
-                      : "hover:bg-accent/50 hover:text-accent-foreground"
-                  )}
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </div>
           </div>
         </motion.div>
       )}
     </AnimatePresence>
   );
 
-  const headerVariants = {
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-    hidden: { opacity: 0, y: -25, transition: { duration: 0.3 } }
-  };
-
   return (
     <header 
       className={cn(
         "fixed top-0 z-50 w-full transition-all duration-300 backdrop-blur-md",
         scrolled 
-          ? "bg-white/80 dark:bg-gray-900/80 shadow-md" 
+          ? "bg-background/80 shadow-sm border-b border-border/40" 
           : "bg-transparent"
       )}
     >
-      <motion.div 
-        className="container mx-auto px-4 h-16 flex items-center justify-between"
-        initial="visible"
-        animate="visible"
-        variants={headerVariants}
-      >
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo and Brand Area */}
         <Link to="/" className="flex items-center space-x-2">
           <NoiseSenseLogo size="sm" animated={true} />
@@ -242,9 +106,24 @@ export function Header() {
         </Link>
         
         {/* Desktop Navigation */}
-        {renderDesktopNav()}
+        <div className="hidden md:flex items-center space-x-6">
+          {mainNavItems.map(item => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) => cn(
+                "relative py-1 px-1 text-sm font-medium transition-colors hover:text-primary",
+                isActive 
+                  ? "text-primary after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:bg-primary" 
+                  : "text-foreground/70"
+              )}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
 
-        {/* Mobile Menu Button */}
+        {/* Mobile Menu Button and Theme Toggle */}
         <div className="flex items-center gap-2">
           <ThemeToggle />
           
@@ -257,7 +136,7 @@ export function Header() {
             {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
         </div>
-      </motion.div>
+      </div>
       
       {/* Mobile Navigation */}
       {renderMobileNav()}

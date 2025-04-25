@@ -1,15 +1,14 @@
 
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import NoiseTimeSeriesChart, { NoiseTimeSeriesData } from "./NoiseTimeSeriesChart";
+import React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { motion } from "framer-motion";
 import { NoiseBarChart } from "./NoiseBarChart";
 import { NoisePieChart } from "./NoisePieChart";
+import { NoiseTimeSeriesChart } from "./NoiseTimeSeriesChart";
 import { NoiseHeatmapChart } from "./NoiseHeatmapChart";
-import { useMediaQuery } from "@/hooks/use-mobile";
-import { motion } from "framer-motion";
 
-interface NoiseReport {
+export interface NoiseReport {
   id: string;
   latitude: number;
   longitude: number;
@@ -19,140 +18,160 @@ interface NoiseReport {
   notes?: string;
 }
 
-interface NoiseAnalyticsDashboardProps {
+export interface NoiseAnalyticsDashboardProps {
   data?: NoiseReport[];
   startDate?: Date;
   endDate?: Date;
 }
 
-export const NoiseAnalyticsDashboard: React.FC<NoiseAnalyticsDashboardProps> = ({ 
-  data = [], 
-  startDate, 
-  endDate 
+export const NoiseAnalyticsDashboard: React.FC<NoiseAnalyticsDashboardProps> = ({
+  data = [],
+  startDate,
+  endDate,
 }) => {
-  const isMobile = useMediaQuery("(max-width: 768px)");
-  const [activeTab, setActiveTab] = useState("time-series");
-
-  // Process data for time series chart
-  const timeSeriesData = React.useMemo((): NoiseTimeSeriesData[] => {
-    if (!data || data.length === 0) return [];
-    
-    // Group by day
-    const groupedByDay: Record<string, NoiseReport[]> = {};
-    
-    data.forEach(report => {
-      const date = new Date(report.created_at);
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-      
-      if (!groupedByDay[dateKey]) {
-        groupedByDay[dateKey] = [];
-      }
-      
-      groupedByDay[dateKey].push(report);
+  // Format date range for display
+  const formatDate = (date?: Date) => {
+    if (!date) return "N/A";
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
-    
-    // Process each day's data
-    return Object.entries(groupedByDay).map(([dateKey, dayReports]) => {
-      // Calculate stats
-      const avgLevel = Math.round(dayReports.reduce((sum, r) => sum + r.decibel_level, 0) / dayReports.length);
-      const maxLevel = Math.max(...dayReports.map(r => r.decibel_level));
-      const minLevel = Math.min(...dayReports.map(r => r.decibel_level));
-      
-      // Count noise types
-      const typeCounts: Record<string, number> = {};
-      dayReports.forEach(report => {
-        typeCounts[report.noise_type] = (typeCounts[report.noise_type] || 0) + 1;
-      });
-      
-      // Find primary noise type
-      let primaryNoiseType = "Unknown";
-      let maxTypeCount = 0;
-      
-      Object.entries(typeCounts).forEach(([type, count]) => {
-        if (count > maxTypeCount) {
-          maxTypeCount = count;
-          primaryNoiseType = type;
-        }
-      });
-      
-      return {
-        time: dateKey,
-        avgLevel,
-        maxLevel,
-        minLevel,
-        range: maxLevel - minLevel,
-        count: dayReports.length,
-        primaryNoiseType
-      };
-    }).sort((a, b) => a.time.localeCompare(b.time)); // Sort by date
-  }, [data]);
-
-  const tabContentVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
   };
 
+  const dateRangeText = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+
+  // Analytics for summary section
+  const analytics = React.useMemo(() => {
+    if (!data || data.length === 0) return null;
+
+    const totalReports = data.length;
+    const avgLevel =
+      data.reduce((sum, item) => sum + item.decibel_level, 0) / totalReports;
+    
+    const noiseTypes = data.reduce((acc, item) => {
+      acc[item.noise_type] = (acc[item.noise_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const primaryType = Object.entries(noiseTypes).sort((a, b) => b[1] - a[1])[0]?.[0] || "Unknown";
+    
+    const maxLevel = Math.max(...data.map(item => item.decibel_level));
+    const minLevel = Math.min(...data.map(item => item.decibel_level));
+
+    return {
+      totalReports,
+      avgLevel: avgLevel.toFixed(1),
+      primaryType,
+      maxLevel,
+      minLevel,
+      noiseTypes
+    };
+  }, [data]);
+
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-2xl">Noise Analytics Dashboard</CardTitle>
-        <CardDescription>
-          Comprehensive analysis of noise pollution data
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs 
-          defaultValue="time-series" 
-          className="w-full"
-          onValueChange={setActiveTab}
-        >
-          <TabsList className="grid grid-cols-4 mb-8">
-            <TabsTrigger value="time-series">Time Trends</TabsTrigger>
-            <TabsTrigger value="distribution">Distribution</TabsTrigger>
-            <TabsTrigger value="heatmap">Time Heatmap</TabsTrigger>
-            <TabsTrigger value="categories">Categories</TabsTrigger>
-          </TabsList>
-          
-          <motion.div
-            key={activeTab}
-            initial="hidden"
-            animate="visible"
-            variants={tabContentVariants}
-          >
-            <TabsContent value="time-series" className="mt-0">
-              <NoiseTimeSeriesChart 
-                data={timeSeriesData}
-                title="Noise Level Trends Over Time" 
-                description="Daily noise level patterns showing average, minimum and maximum readings" 
-              />
-            </TabsContent>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Noise Analytics Dashboard</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Data analytics for period: {dateRangeText}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {!analytics ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No data available for analysis</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{analytics.totalReports}</div>
+                    <p className="text-xs text-muted-foreground uppercase">Total Reports</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{analytics.avgLevel} dB</div>
+                    <p className="text-xs text-muted-foreground uppercase">Average Level</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{analytics.maxLevel} dB</div>
+                    <p className="text-xs text-muted-foreground uppercase">Max Level</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{analytics.primaryType}</div>
+                    <p className="text-xs text-muted-foreground uppercase">Primary Noise Type</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="summary" className="w-full">
+        <TabsList className="w-full md:w-auto grid grid-cols-4 md:flex">
+          <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="time">Time Series</TabsTrigger>
+          <TabsTrigger value="distribution">Distribution</TabsTrigger>
+          <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="summary" className="space-y-4 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Bar Chart */}
+            <NoiseBarChart data={data} title="Noise by Type" />
             
-            <TabsContent value="distribution" className="mt-0">
-              <NoiseBarChart 
-                data={data} 
-                title="Noise Level Distribution" 
-                description="Distribution of noise levels across different categories"
-              />
-            </TabsContent>
-            
-            <TabsContent value="heatmap" className="mt-0">
-              <NoiseHeatmapChart 
-                data={data} 
-                title="Noise Time Distribution" 
-                description="Heatmap showing noise levels by hour and day of the week"
-              />
-            </TabsContent>
-            
-            <TabsContent value="categories" className="mt-0">
-              <NoisePieChart 
-                data={data} 
-                title="Noise Source Categories" 
-                description="Breakdown of reported noise sources by category"
-              />
-            </TabsContent>
-          </motion.div>
-        </Tabs>
-      </CardContent>
-    </Card>
+            {/* Pie Chart */}
+            <NoisePieChart data={data} title="Noise Distribution" />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="time" className="mt-4">
+          <Card>
+            <CardContent className="pt-6">
+              <NoiseTimeSeriesChart data={data} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="distribution" className="mt-4">
+          <div className="grid grid-cols-1 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Noise Level Distribution</CardTitle>
+              </CardHeader>
+              <CardContent className="h-[400px]">
+                <NoiseBarChart data={data} title="" />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="heatmap" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Noise Heatmap</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[400px]">
+              <NoiseHeatmapChart data={data} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
