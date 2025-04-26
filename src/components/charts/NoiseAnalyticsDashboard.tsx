@@ -1,3 +1,4 @@
+
 import { NoiseBarChart } from "./NoiseBarChart";
 import { NoiseHeatmapChart } from "./NoiseHeatmapChart";
 import { NoisePieChart } from "./NoisePieChart";
@@ -206,35 +207,47 @@ export function NoiseAnalyticsDashboard({
         </Button>
       </div>
 
-      {/* Time Series Chart */}
-      <NoiseTimeSeriesChart 
-        data={data.map(report => ({
-          time: new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          avgLevel: report.decibel_level,
-          maxLevel: report.decibel_level + 5, // Simulated max level
-          minLevel: Math.max(report.decibel_level - 10, 0), // Simulated min level
-          range: 10,
-          count: 1,
-          primaryNoiseType: report.noise_type
-        }))}
-        title="Noise Level Trends" 
-        description="Historical pattern analysis of noise levels over time"
-      />
+      {/* Charts Section with proper layout to prevent overlapping */}
+      <div className="space-y-8">
+        {/* Time Series Chart - Full Width */}
+        <div className="w-full">
+          <NoiseTimeSeriesChart 
+            data={data.map(report => ({
+              time: new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              avgLevel: report.decibel_level,
+              maxLevel: report.decibel_level + 5, // Simulated max level
+              minLevel: Math.max(report.decibel_level - 10, 0), // Simulated min level
+              range: 10,
+              count: 1,
+              primaryNoiseType: report.noise_type
+            }))}
+            title="Noise Level Trends" 
+            description="Historical pattern analysis of noise levels over time"
+          />
+        </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <NoisePieChart data={data} title="Noise Distribution" />
-        <NoiseBarChart data={data} title="Noise Levels Analysis" />
+        {/* Two Column Charts with proper spacing */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="h-[400px]">
+            <NoisePieChart data={data} title="Noise Distribution" />
+          </div>
+          <div className="h-[400px]">
+            <NoiseBarChart data={data} title="Noise Levels Analysis" />
+          </div>
+        </div>
+        
+        {/* Heatmap - Full Width */}
+        <div className="w-full mt-8">
+          <NoiseHeatmapChart 
+            data={data} 
+            title="Noise Time Distribution" 
+            description="Heatmap showing noise levels by hour and day of the week"
+          />
+        </div>
       </div>
       
-      <NoiseHeatmapChart 
-        data={data} 
-        title="Noise Time Distribution" 
-        description="Heatmap showing noise levels by hour and day of the week"
-      />
-      
       {/* Additional statistics */}
-      <Card className="mt-6">
+      <Card className="mt-8">
         <CardHeader>
           <CardTitle>Noise Level Distribution</CardTitle>
           <CardDescription>Breakdown of noise reports by intensity level</CardDescription>
@@ -309,4 +322,4 @@ export function NoiseAnalyticsDashboard({
       </Card>
     </div>
   );
-} 
+}

@@ -6,21 +6,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-// Define NoiseReport interface for use with DeepSeek AI integration
-export interface NoiseReport {
-  id: string;
-  latitude: number;
-  longitude: number;
-  decibel_level: number;
-  noise_type: string;
-  created_at: string;
-  notes?: string;
-  address?: string;
-  reported_by?: string;
-  status?: string;
-  flagged?: boolean;
-}
-
 export type Database = {
   public: {
     Tables: {
