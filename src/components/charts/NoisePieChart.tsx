@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoiseReport } from '@/types';
 
-interface NoisePieChartProps {
+export interface NoisePieChartProps {
   data: NoiseReport[];
   title: string;
   height?: number | string;

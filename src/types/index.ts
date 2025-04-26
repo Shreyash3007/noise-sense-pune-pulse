@@ -29,3 +29,14 @@ export interface TimeSeriesPoint {
   count: number;
   primaryNoiseType: string;
 }
+
+export interface NoiseAIResponse {
+  text: string;
+  timestamp: string;
+  source: 'ai' | 'user';
+}
+
+export interface NoiseAIMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}

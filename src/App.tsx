@@ -1,3 +1,4 @@
+
 import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,6 +10,7 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { checkDatabaseConnection } from "./integrations/supabase/client";
 import LoadingLogo from "./components/LoadingLogo";
 import { AnimatePresence } from "framer-motion";
+import AIChatWidget from "./components/AIChatWidget";
 
 // Import theme styles
 import "./styles/theme.css";
@@ -119,6 +121,7 @@ const App = () => {
                 </Suspense>
               </AnimatePresence>
             </MainLayout>
+            <AIChatWidget />
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>
