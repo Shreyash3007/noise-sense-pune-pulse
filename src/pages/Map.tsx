@@ -23,8 +23,8 @@ import NoiseSenseLogo from "@/components/NoiseSenseLogo";
 import { Link } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { NoiseReport } from "@/types";
 
-// Mock data for analytics charts when actual data isn't available yet
 const mockTimeSeriesData = [
   {
     time: "2025-04-20",
@@ -143,7 +143,6 @@ const AnalyticsDashboard = () => {
     queryKey: ['noise-levels', dateRange, noiseType, severity],
     queryFn: async () => {
       try {
-        // Use the new mock data with 500 Pune noise reports
         const { generatePuneNoiseData } = await import('@/lib/mock-data');
         return generatePuneNoiseData(500);
       } catch (error) {
@@ -164,6 +163,17 @@ const AnalyticsDashboard = () => {
   const formatDate = (date: Date | undefined) => {
     if (!date) return "";
     return format(date, "PPP");
+  };
+
+  const calculateAverageNoise = () => {
+    if (!noiseData || noiseData.length === 0) return 0;
+    
+    const sum = noiseData.reduce((total, report) => {
+      const decibelLevel = Number(report.decibel_level);
+      return total + (isNaN(decibelLevel) ? 0 : decibelLevel);
+    }, 0);
+    
+    return Math.round(sum / noiseData.length);
   };
 
   return (
@@ -309,7 +319,6 @@ const AnalyticsDashboard = () => {
               className="pb-8"
             >
               <div className="grid grid-cols-1 gap-6">
-                {/* Map Card */}
                 <Card className="overflow-hidden">
                   <CardContent className="p-0">
                     <div className="h-[70vh]">
@@ -318,7 +327,6 @@ const AnalyticsDashboard = () => {
                   </CardContent>
                 </Card>
                 
-                {/* Simple Summary Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Card>
                     <CardHeader className="pb-2">
@@ -337,7 +345,7 @@ const AnalyticsDashboard = () => {
                       <CardDescription>Average Noise</CardDescription>
                       <CardTitle className="text-2xl">
                         {noiseData && noiseData.length > 0 
-                          ? Math.round(noiseData.reduce((sum, report) => sum + report.decibel_level, 0) / noiseData.length) 
+                          ? calculateAverageNoise()
                           : 0} dB
                       </CardTitle>
                     </CardHeader>
@@ -392,7 +400,6 @@ const AnalyticsDashboard = () => {
                   </Card>
                 </div>
                 
-                {/* Basic Charts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card>
                     <CardHeader>

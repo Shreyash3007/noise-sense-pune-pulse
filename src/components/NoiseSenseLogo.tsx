@@ -75,27 +75,62 @@ const NoiseSenseLogo: React.FC<NoiseSenseLogo> = ({
                                theme === 'light' ? 'primary' : 
                                colorScheme;
 
+  // Fixed the animation variants to use proper types for repeatType
   const outerWaveVariants = {
     initial: { scale: 0.9, opacity: 0.2 },
-    animate: { scale: 1.1, opacity: 0.3, transition: { duration: 2, repeat: Infinity, repeatType: "reverse" } },
+    animate: { 
+      scale: 1.1, 
+      opacity: 0.3, 
+      transition: { 
+        duration: 2, 
+        repeat: Infinity, 
+        repeatType: "reverse" as const
+      } 
+    },
     hover: { scale: 1.15, opacity: 0.4, transition: { duration: 0.3 } }
   };
 
   const middleWaveVariants = {
     initial: { scale: 0.8, opacity: 0.4 },
-    animate: { scale: 1, opacity: 0.6, transition: { duration: 1.5, repeat: Infinity, repeatType: "reverse", delay: 0.2 } },
+    animate: { 
+      scale: 1, 
+      opacity: 0.6, 
+      transition: { 
+        duration: 1.5, 
+        repeat: Infinity, 
+        repeatType: "reverse" as const, 
+        delay: 0.2 
+      } 
+    },
     hover: { scale: 1.05, opacity: 0.7, transition: { duration: 0.3, delay: 0.05 } }
   };
 
   const innerWaveVariants = {
     initial: { scale: 0.9, opacity: 0.7 },
-    animate: { scale: 1, opacity: 0.8, transition: { duration: 1, repeat: Infinity, repeatType: "reverse", delay: 0.4 } },
+    animate: { 
+      scale: 1, 
+      opacity: 0.8, 
+      transition: { 
+        duration: 1, 
+        repeat: Infinity, 
+        repeatType: "reverse" as const, 
+        delay: 0.4 
+      } 
+    },
     hover: { scale: 1.1, opacity: 0.9, transition: { duration: 0.3, delay: 0.1 } }
   };
 
   const centerPointVariants = {
     initial: { scale: 1 },
-    animate: { scale: 1.2, transition: { duration: 0.8, repeat: Infinity, repeatType: "reverse", delay: 0.6 } },
+    animate: { 
+      scale: 1.2, 
+      transition: { 
+        duration: 0.8, 
+        repeat: Infinity, 
+        repeatType: "reverse" as const, 
+        delay: 0.6 
+      } 
+    },
     hover: { scale: 1.3, transition: { duration: 0.3, delay: 0.15 } }
   };
 

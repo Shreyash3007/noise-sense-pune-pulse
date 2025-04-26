@@ -1,91 +1,138 @@
 
-import React from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { NoiseReport } from "./NoiseAnalyticsDashboard";
+import React, { useState, useEffect } from 'react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { NoiseReport } from '@/types';
 
-export interface NoisePieChartProps {
-  data?: NoiseReport[];
-  title?: string;
+interface NoisePieChartProps {
+  data: NoiseReport[];
+  title: string;
+  height?: number | string;
+  className?: string;
 }
 
-export const NoisePieChart: React.FC<NoisePieChartProps> = ({ 
-  data = [], 
-  title = "Noise Distribution" 
+export const NoisePieChart: React.FC<NoisePieChartProps> = ({
+  data,
+  title,
+  height = 350,
+  className = '',
 }) => {
-  // Prepare data for the pie chart
-  const chartData = React.useMemo(() => {
-    const noiseTypes: Record<string, number> = {};
-    
-    data.forEach((report) => {
-      if (!noiseTypes[report.noise_type]) {
-        noiseTypes[report.noise_type] = 0;
+  const [chartData, setChartData] = useState<{ name: string; value: number }[]>([]);
+
+  // Predefined colors for noise categories
+  const COLORS = [
+    '#8884d8', // Purple
+    '#82ca9d', // Green
+    '#ffc658', // Yellow
+    '#ff8042', // Orange
+    '#0088fe', // Blue
+    '#00C49F', // Teal
+    '#FFBB28', // Gold
+    '#FF8042', // Coral
+    '#a4de6c', // Light Green
+    '#d0ed57', // Lime
+  ];
+
+  useEffect(() => {
+    if (!data || data.length === 0) return;
+
+    // Group data by noise type and count occurrences
+    const noiseTypeCounts = data.reduce((acc, report) => {
+      const type = report.noise_type;
+      if (!acc[type]) {
+        acc[type] = 0;
       }
-      noiseTypes[report.noise_type]++;
-    });
-    
-    return Object.entries(noiseTypes).map(([name, value]) => ({
-      name,
-      value,
-    }));
+      acc[type]++;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Convert to chart format and sort by frequency
+    const processedData = Object.keys(noiseTypeCounts)
+      .map((type) => ({
+        name: type,
+        value: noiseTypeCounts[type],
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    setChartData(processedData);
   }, [data]);
 
-  // Colors for the pie chart segments
-  const COLORS = ['#f97316', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6', '#84cc16', '#f59e0b'];
-  
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const percentage = ((data.value / data.total) * 100).toFixed(1);
-      
-      return (
-        <div className="bg-background/95 p-2 border border-border rounded shadow-md">
-          <p className="font-medium">{`${data.name}`}</p>
-          <p className="text-sm">{`Reports: ${data.value} (${percentage}%)`}</p>
-        </div>
-      );
-    }
-    return null;
+  const renderCustomizedLabel = ({
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent,
+    index,
+  }: any) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="white"
+        textAnchor={x > cx ? 'start' : 'end'}
+        dominantBaseline="central"
+        className="text-xs"
+      >
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
   };
 
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[300px] w-full">
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={COLORS[index % COLORS.length]} 
-                    />
-                  ))}
-                </Pie>
-                <Legend layout="vertical" verticalAlign="middle" align="right" />
-                <Tooltip content={<CustomTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <p className="text-muted-foreground">No data available</p>
-            </div>
-          )}
+  if (!data || data.length === 0) {
+    return (
+      <Card className={`p-4 ${className}`}>
+        <h3 className="text-lg font-medium mb-4">{title || 'Noise Types Distribution'}</h3>
+        <div className="space-y-2">
+          <Skeleton className="h-[300px]" />
         </div>
-      </CardContent>
-    </Card>
+      </Card>
+    );
+  }
+
+  return (
+    <div className={`w-full ${className}`}>
+      {title && <h3 className="text-lg font-medium mb-2">{title}</h3>}
+      <div style={{ width: '100%', height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={renderCustomizedLabel}
+              outerRadius={80}
+              fill="#8884d8"
+              dataKey="value"
+              animationDuration={1000}
+              animationEasing="ease-out"
+            >
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={COLORS[index % COLORS.length]}
+                  strokeWidth={2}
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value: number) => [`${value} reports`, 'Count']}
+              labelFormatter={(label) => `Noise Type: ${label}`}
+            />
+            <Legend verticalAlign="bottom" height={36} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 };
+
+export default NoisePieChart;

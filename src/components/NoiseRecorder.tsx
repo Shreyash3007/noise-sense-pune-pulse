@@ -32,8 +32,8 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { env } from "@/lib/env";
 
-// Set Mapbox token directly from environment
-mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN;
+// Set Mapbox token from environment - ensure it exists
+mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN || 'MAPBOX_TOKEN_HERE';
 
 const NoiseRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -54,7 +54,6 @@ const NoiseRecorder = () => {
   const [showLocationError, setShowLocationError] = useState(false);
   const { toast } = useToast();
   
-  // Animation for visualizing sound
   const [animationLevel, setAnimationLevel] = useState(0);
   
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
@@ -63,7 +62,6 @@ const NoiseRecorder = () => {
   const locationMarker = useRef<mapboxgl.Marker | null>(null);
   
   useEffect(() => {
-    // Reset audio visualization when not recording
     if (!isRecording) {
       const intervalId = setInterval(() => {
         setAnimationLevel(Math.random() * 20);
@@ -73,7 +71,6 @@ const NoiseRecorder = () => {
     }
   }, [isRecording]);
 
-  // Get noise category options
   const noiseCategories = [
     { value: "Traffic", label: "Traffic Noise" },
     { value: "Construction", label: "Construction" },
@@ -90,14 +87,13 @@ const NoiseRecorder = () => {
     setLocationStatus("fetching");
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, 
-          // Custom error handler to avoid throwing actual errors
+        navigator.geolocation.getCurrentPosition(
+          resolve, 
           (posError) => {
-            // Handle the error here without throwing
+            console.error("Location error:", posError.message);
             setLocationStatus("error");
             setShowLocationError(true);
-            // Use a custom object instead of throwing the error
-            resolve({ handled: true, error: posError } as any);
+            reject({ handled: true, error: posError });
           }, 
           {
             enableHighAccuracy: true,
@@ -107,31 +103,44 @@ const NoiseRecorder = () => {
         );
       });
       
-      // Check if it's our handled error response
-      if (pos && (pos as any).handled) {
-        return null;
-      }
-      
       setLocation({
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
       });
       setLocationStatus("success");
       
-      // Open location confirmation dialog
       setIsLocationMapOpen(true);
       
       return pos;
-    } catch (error) {
-      // This should now only catch unexpected errors
+    } catch (error: any) {
       console.error("Unexpected error in location handling:", error);
+      
+      if (error?.error?.code === 1) {
+        toast({
+          title: "Location Permission Denied",
+          description: "Please enable location services in your browser settings to use this feature.",
+          variant: "destructive",
+        });
+      } else if (error?.error?.code === 2) {
+        toast({
+          title: "Location Unavailable",
+          description: "Unable to determine your current location. Please try again or enter location manually.",
+          variant: "destructive",
+        });
+      } else if (error?.error?.code === 3) {
+        toast({
+          title: "Location Request Timeout",
+          description: "Location request took too long. Please try again with a better connection.",
+          variant: "destructive",
+        });
+      }
+      
       setLocationStatus("error");
       setShowLocationError(true);
       return null;
     }
   };
 
-  // Handle step-by-step permission requests
   const requestPermissions = async () => {
     setShowPermissionDialog(true);
     setPermissionStep("mic");
@@ -140,7 +149,6 @@ const NoiseRecorder = () => {
   const handleMicPermission = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Stop stream immediately after testing permission
       stream.getTracks().forEach(track => track.stop());
       setPermissionStep("location");
     } catch (error) {
@@ -151,6 +159,14 @@ const NoiseRecorder = () => {
   };
 
   const handleLocationConfirmation = () => {
+    if (locationMap.current && locationMarker.current) {
+      const finalPosition = locationMarker.current.getLngLat();
+      setLocation({
+        latitude: finalPosition.lat,
+        longitude: finalPosition.lng
+      });
+    }
+    
     setIsLocationMapOpen(false);
     
     toast({
@@ -159,7 +175,6 @@ const NoiseRecorder = () => {
       variant: "default",
     });
     
-    // Continue with recording after location is confirmed
     startRecordingWithPermissions();
   };
 
@@ -167,18 +182,14 @@ const NoiseRecorder = () => {
     const pos = await getLocationAsync();
     
     if (pos) {
-      // Location successfully obtained
       setShowPermissionDialog(false);
-      // The startRecordingWithPermissions will be called after location confirmation
     }
-    // Otherwise the error dialog is already shown by getLocationAsync
   };
 
   const skipLocationAndContinue = () => {
     setLocationStatus("skipped");
     setShowLocationError(false);
     setShowPermissionDialog(false);
-    // Start recording without location data
     startRecordingWithPermissions();
     
     toast({
@@ -193,12 +204,10 @@ const NoiseRecorder = () => {
       setRecordingStage("permission");
       setPermissionError("");
       
-      // Check if browser supports getUserMedia
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("Your browser doesn't support audio recording. Please try using a modern browser like Chrome, Firefox, or Edge.");
       }
       
-      // Request microphone again to start actual recording
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { 
           echoCancellation: true,
@@ -207,14 +216,12 @@ const NoiseRecorder = () => {
         } 
       });
         
-      // Initialize audio processing
       let audioContext;
       try {
-        // Use type assertion to handle browser prefixes
         const AudioContextClass = window.AudioContext || 
           (window as any).webkitAudioContext;
         audioContext = new AudioContextClass();
-        await audioContext.resume(); // Ensure context is running (needed in some browsers)
+        await audioContext.resume();
       } catch (audioContextError) {
         stream.getTracks().forEach(track => track.stop());
         throw new Error("Could not initialize audio processing. Please try again or use a different browser.");
@@ -231,7 +238,6 @@ const NoiseRecorder = () => {
       setRecordingProgress(0);
       setRecordingTimeLeft(10);
       
-      // Progress bar and timer update
       const progressInterval = setInterval(() => {
         setRecordingProgress(prev => {
           const newValue = prev + 1;
@@ -247,16 +253,13 @@ const NoiseRecorder = () => {
         });
       }, 100);
       
-      // Animate sound levels during recording
       const visualizerInterval = setInterval(() => {
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(dataArray);
-        // Calculate average volume for animation
         const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
         setAnimationLevel(average);
       }, 50);
       
-      // Record for 10 seconds
       setTimeout(async () => {
         clearInterval(visualizerInterval);
         setRecordingStage("processing");
@@ -264,25 +267,19 @@ const NoiseRecorder = () => {
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(dataArray);
         
-        // Calculate average volume
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-        // Convert to decibels (rough approximation)
         const db = Math.round(average * 0.6);
         
         setDecibels(db);
         setIsRecording(false);
         setRecordingStage("done");
         
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
-        
       }, 10000);
-      
     } catch (error) {
       console.error("Error starting recording:", error);
       setIsRecording(false);
       
-      // Handle specific error messages
       if (error instanceof Error) {
         setPermissionError(error.message);
       } else if (locationStatus === "error") {
@@ -300,12 +297,9 @@ const NoiseRecorder = () => {
   };
 
   const startRecording = () => {
-    // First check if we already have permissions
     if (location && locationStatus === "success") {
-      // Show location confirmation even if we already have location
       setIsLocationMapOpen(true);
     } else {
-      // Request permissions step by step
       requestPermissions();
     }
   };
@@ -340,7 +334,6 @@ const NoiseRecorder = () => {
 
       setShowSuccessDialog(true);
       
-      // Reset form after successful submission
       setTimeout(() => {
         setDecibels(null);
         setNoiseType("");
@@ -359,7 +352,6 @@ const NoiseRecorder = () => {
     }
   };
 
-  // Function to retry permissions
   const retryPermissions = () => {
     setPermissionError("");
     requestPermissions();
@@ -401,10 +393,8 @@ const NoiseRecorder = () => {
   };
   
   const renderSoundWaves = () => {
-    // Normalize animation level to get values between 0 and 100
     const normalizedLevel = Math.min(100, Math.max(0, animationLevel));
     
-    // Generate 5 bars with varying heights based on normalizedLevel
     return (
       <div className="flex justify-center items-center h-20 gap-1 my-6">
         {[0.6, 0.8, 1, 0.8, 0.6].map((factor, index) => {
@@ -421,7 +411,6 @@ const NoiseRecorder = () => {
     );
   };
 
-  // Location error dialog
   const renderLocationErrorDialog = () => {
     return (
       <Dialog open={showLocationError} onOpenChange={setShowLocationError}>
@@ -454,39 +443,54 @@ const NoiseRecorder = () => {
     );
   };
 
-  // Initialize and setup the location confirmation map
   useEffect(() => {
     if (isLocationMapOpen && locationMapContainer.current && location) {
-      // Create a new map instance for location confirmation
-      locationMap.current = new mapboxgl.Map({
-        container: locationMapContainer.current,
-        style: "mapbox://styles/mapbox/dark-v11",
-        center: [location.longitude, location.latitude],
-        zoom: 15,
-        attributionControl: false,
-      });
-      
-      // Add navigation controls to the map
-      locationMap.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      
-      // Add a draggable marker to the map at the user's location
-      locationMarker.current = new mapboxgl.Marker({
-        draggable: true,
-        color: "#8B5CF6" // Purple color
-      })
-        .setLngLat([location.longitude, location.latitude])
-        .addTo(locationMap.current);
-      
-      // Update location state when marker is dragged
-      locationMarker.current.on('dragend', () => {
-        const lngLat = locationMarker.current.getLngLat();
-        setLocation({
-          latitude: lngLat.lat,
-          longitude: lngLat.lng
+      try {
+        locationMap.current = new mapboxgl.Map({
+          container: locationMapContainer.current,
+          style: "mapbox://styles/mapbox/dark-v11",
+          center: [location.longitude, location.latitude],
+          zoom: 15,
+          attributionControl: false,
         });
-      });
+        
+        locationMap.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        
+        locationMap.current.on('load', () => {
+          if (!locationMap.current) return;
+          
+          locationMarker.current = new mapboxgl.Marker({
+            draggable: true,
+            color: "#8B5CF6"
+          })
+            .setLngLat([location.longitude, location.latitude])
+            .addTo(locationMap.current);
+          
+          locationMarker.current.on('dragend', () => {
+            if (!locationMarker.current) return;
+            
+            const lngLat = locationMarker.current.getLngLat();
+            setLocation({
+              latitude: lngLat.lat,
+              longitude: lngLat.lng
+            });
+          });
+        });
+        
+        setTimeout(() => {
+          if (locationMap.current) {
+            locationMap.current.resize();
+          }
+        }, 300);
+      } catch (error) {
+        console.error("Error initializing map:", error);
+        toast({
+          title: "Map Error",
+          description: "Could not initialize the location map. Please try again.",
+          variant: "destructive",
+        });
+      }
       
-      // Cleanup function
       return () => {
         if (locationMap.current) {
           locationMap.current.remove();
@@ -496,10 +500,15 @@ const NoiseRecorder = () => {
     }
   }, [isLocationMapOpen, location]);
 
-  // Add location confirmation dialog to render method
   const renderLocationConfirmationDialog = () => {
     return (
-      <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+      <Dialog open={isLocationMapOpen} onOpenChange={(open) => {
+        if (!open && locationMap.current) {
+          locationMap.current.remove();
+          locationMap.current = null;
+        }
+        setIsLocationMapOpen(open);
+      }}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Confirm Your Location</DialogTitle>
@@ -524,13 +533,15 @@ const NoiseRecorder = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-2 mb-2">
-            <MapPin className="h-4 w-4 text-purple-500" />
-            <span className="font-medium">Current coordinates:</span>
-            <span className="text-gray-600 dark:text-gray-400">
-              {location?.latitude.toFixed(6)}, {location?.longitude.toFixed(6)}
-            </span>
-          </div>
+          {location && (
+            <div className="flex items-center gap-2 mb-2">
+              <MapPin className="h-4 w-4 text-purple-500" />
+              <span className="font-medium">Current coordinates:</span>
+              <span className="text-gray-600 dark:text-gray-400">
+                {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+              </span>
+            </div>
+          )}
           
           <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
             <Button variant="outline" onClick={() => setIsLocationMapOpen(false)}>
@@ -552,7 +563,6 @@ const NoiseRecorder = () => {
 
   return (
     <Card className="w-full max-w-xl mx-auto p-6 shadow-lg bg-white dark:bg-gray-900 relative">
-      {/* Animation for recording */}
       <div
         className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none"
         style={{ zIndex: 1 }}
@@ -563,7 +573,6 @@ const NoiseRecorder = () => {
       </div>
       
       <div className="relative" style={{ zIndex: 2 }}>
-        {/* Card Content */}
         <div className="flex justify-between items-start mb-6">
           <div className="flex items-center">
             <NoiseSenseLogo size="sm" animated={isRecording} className="mr-3" />
@@ -593,7 +602,6 @@ const NoiseRecorder = () => {
         )}
 
         <div className="space-y-6">
-          {/* Recording UI */}
           {isRecording && (
             <div className="mb-8 animate-in fade-in-0 duration-300">
               <div className="flex justify-between items-center mb-2">
@@ -604,7 +612,6 @@ const NoiseRecorder = () => {
             </div>
           )}
 
-          {/* Recording button */}
           {!decibels && (
             <Button
               onClick={startRecording}
@@ -625,10 +632,8 @@ const NoiseRecorder = () => {
             </Button>
           )}
 
-          {/* Noise measurement display */}
           {renderNoiseMeter()}
 
-          {/* Location display */}
           {location && (
             <div className="flex items-center mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-900">
               <MapPin className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
@@ -641,7 +646,6 @@ const NoiseRecorder = () => {
             </div>
           )}
 
-          {/* Form fields */}
           {decibels && (
             <div className="space-y-4 animate-in fade-in-50 duration-300">
               <div>
@@ -699,7 +703,6 @@ const NoiseRecorder = () => {
         </div>
       </div>
       
-      {/* Render dialogs */}
       <Dialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -748,7 +751,6 @@ const NoiseRecorder = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Success dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -784,10 +786,8 @@ const NoiseRecorder = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Add location error dialog */}
       {renderLocationErrorDialog()}
 
-      {/* Add location confirmation dialog */}
       {renderLocationConfirmationDialog()}
     </Card>
   );

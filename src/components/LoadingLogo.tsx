@@ -1,8 +1,9 @@
+
 import NoiseSenseLogo from "./NoiseSenseLogo";
 import { motion } from "framer-motion";
 
 interface LoadingLogoProps {
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg";  // Removed "xl" as it's not supported in NoiseSenseLogo
   text?: string;
 }
 
@@ -30,4 +31,4 @@ const LoadingLogo = ({ size = "lg", text = "Loading..." }: LoadingLogoProps) => 
   );
 };
 
-export default LoadingLogo; 
+export default LoadingLogo;
