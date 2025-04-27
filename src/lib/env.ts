@@ -39,7 +39,7 @@ function parseBool(value: string | undefined): boolean {
 // Create and export the environment configuration
 export const env: EnvConfig = {
   // API Keys - using static values for demonstration
-  MAPBOX_ACCESS_TOKEN: getEnvVar('MAPBOX_ACCESS_TOKEN', 'pk.your-mapbox-token'),
+  MAPBOX_ACCESS_TOKEN: getEnvVar('MAPBOX_ACCESS_TOKEN', 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4M29iazA2Z2gycXA4N2pmbDZmangifQ.-g_vE53SD2WrJ6tFX7QHmA'),
   SUPABASE_URL: getEnvVar('SUPABASE_URL', 'https://your-supabase-project.supabase.co'),
   SUPABASE_ANON_KEY: getEnvVar('SUPABASE_ANON_KEY', 'your-supabase-anon-key'),
   OPENROUTER_API_KEY: "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",
