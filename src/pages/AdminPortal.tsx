@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from "framer-motion";
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
@@ -41,7 +41,6 @@ import {
   Users,
   Volume2,
   X,
-  PieChart,
   Map,
   LogOut,
   TrendingUpIcon,
@@ -60,7 +59,20 @@ import {
   Mail,
   Send,
   MapIcon,
-  Clock
+  Clock,
+  RefreshCw,
+  Info,
+  LayoutDashboard,
+  BrainCircuit,
+  Mic,
+  Calendar as CalendarIcon,
+  Flag,
+  MapPin,
+  Search,
+  Loader2,
+  Save,
+  Trash2,
+  Database
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -74,18 +86,34 @@ import { NoiseAnalyticsDashboard } from "@/components/charts/NoiseAnalyticsDashb
 import { useMediaQuery } from "@/hooks/use-mobile";
 import NoiseTimeSeriesChart from "@/components/charts/NoiseTimeSeriesChart";
 import { NoiseHeatmapChart } from "@/components/charts/NoiseHeatmapChart";
-import { Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useNavigate } from 'react-router-dom';
 import { NoiseAnalyticsAdvanced } from "@/components/charts/NoiseAnalyticsAdvanced";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { getDeepSeekAnalytics, getDeepSeekRecommendations, chatWithDeepSeek } from '@/integrations/deepseek/client';
+import { getAIAnalytics, getAIRecommendations, chatWithAI } from '@/lib/mock-data';
+import { PUNE_AREAS } from '@/lib/mock-data';
 import ReactMarkdown from 'react-markdown';
-import { ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Line } from 'recharts';
-import { Skeleton } from "@/components/ui/skeleton";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import { format } from 'date-fns';
 import { NoiseLevelsMap } from "@/components/NoiseLevelsMap";
+import NoiseSenseChat from "@/components/NoiseSenseChat";
+import {
+  LineChart,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Line
+} from "recharts";
 
 interface NoiseReport {
   id: string;
@@ -131,11 +159,11 @@ const AdminPortal: React.FC = () => {
   const [aiRecommendations, setAiRecommendations] = useState<string>("");
   const [aiInsights, setAiInsights] = useState<any>(null);
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
-  const [deepseekQuery, setDeepseekQuery] = useState<string>("");
-  const [isDeepseekSearching, setIsDeepseekSearching] = useState<boolean>(false);
-  const [deepseekSearchResults, setDeepseekSearchResults] = useState<NoiseReport[]>([]);
-  const [deepseekExplanation, setDeepseekExplanation] = useState<string>("");
-  const [showDeepseekSearch, setShowDeepseekSearch] = useState<boolean>(false);
+  const [aiQuery, setAiQuery] = useState<string>("");
+  const [isAiSearching, setIsAiSearching] = useState<boolean>(false);
+  const [aiSearchResults, setAiSearchResults] = useState<NoiseReport[]>([]);
+  const [aiExplanation, setAiExplanation] = useState<string>("");
+  const [showAiSearch, setShowAiSearch] = useState<boolean>(false);
   const [showReportGenerator, setShowReportGenerator] = useState<boolean>(false);
   const [reportType, setReportType] = useState<"summary" | "detailed" | "custom">("summary");
   const [reportFilters, setReportFilters] = useState<{
@@ -159,6 +187,35 @@ const AdminPortal: React.FC = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [departmentReports, setDepartmentReports] = useState<{[key: string]: NoiseReport[]}>({});
   const [forwardingReport, setForwardingReport] = useState<boolean>(false);
+  
+  // Settings state
+  const [notificationSettings, setNotificationSettings] = useState({
+    emailNotifications: true,
+    reportThreshold: 80, // dB threshold for high-priority notifications
+    dailyDigest: false,
+    alertSound: true,
+  });
+  
+  const [systemSettings, setSystemSettings] = useState({
+    dataRetentionDays: 90,
+    autoArchive: true,
+    mapDefaultView: "heatmap", // heatmap or markers
+    defaultZoomLevel: 12,
+  });
+  
+  const [aiSettings, setAiSettings] = useState({
+    enableAiInsights: true,
+    insightFrequency: "weekly", // daily, weekly, monthly
+    saveSearchQueries: true,
+    preferredModel: "gpt-4", // gpt-4, claude, gemini
+  });
+
+  const [exportSettings, setExportSettings] = useState({
+    defaultFormat: "csv", // csv, pdf, json
+    includeCharts: true,
+    compressFiles: false,
+    defaultRecipients: "",
+  });
 
   // Check authentication
   useEffect(() => {
@@ -184,7 +241,7 @@ const AdminPortal: React.FC = () => {
         setLoading(false);
         
         // After fetching reports data, load AI insights
-        loadAiInsights(mockData);
+        loadAIInsights(mockData);
       } catch (err) {
         setError("Failed to load noise reports data");
         setLoading(false);
@@ -310,39 +367,51 @@ const AdminPortal: React.FC = () => {
 
   // Get noise reports categorized by level
   const getNoiseLevelCategories = (): NoiseStatsByCategory[] => {
-    if (noiseReports.length === 0) return [];
-    
-    const dangerous = noiseReports.filter(report => report.decibel_level >= 80).length;
-    const high = noiseReports.filter(report => report.decibel_level >= 65 && report.decibel_level < 80).length;
-    const moderate = noiseReports.filter(report => report.decibel_level >= 50 && report.decibel_level < 65).length;
-    const low = noiseReports.filter(report => report.decibel_level < 50).length;
-    
-    return [
-      {
-        category: "Dangerous",
-        count: dangerous,
-        percentage: Math.round((dangerous / noiseReports.length) * 100),
-        color: "bg-red-500"
-      },
-      {
-        category: "High",
-        count: high,
-        percentage: Math.round((high / noiseReports.length) * 100),
-        color: "bg-orange-500"
-      },
-      {
-        category: "Moderate",
-        count: moderate,
-        percentage: Math.round((moderate / noiseReports.length) * 100),
-        color: "bg-yellow-500"
-      },
-      {
-        category: "Low",
-        count: low,
-        percentage: Math.round((low / noiseReports.length) * 100),
-        color: "bg-green-500"
-      }
+    const categories = [
+      { range: [0, 40], label: "Low (0-40 dB)", color: "#4ade80" },  // Green
+      { range: [41, 65], label: "Moderate (41-65 dB)", color: "#facc15" }, // Yellow
+      { range: [66, 85], label: "High (66-85 dB)", color: "#fb923c" }, // Orange
+      { range: [86, 100], label: "Very High (86-100 dB)", color: "#ef4444" }, // Red
+      { range: [101, 150], label: "Dangerous (101+ dB)", color: "#7c3aed" }  // Purple
     ];
+  
+    const counts = categories.map(category => {
+      const count = filteredReports.filter(
+        report => report.decibel_level >= category.range[0] && report.decibel_level <= category.range[1]
+      ).length;
+      return {
+        category: category.label,
+        count,
+        percentage: Math.round((count / filteredReports.length) * 100) || 0,
+        color: category.color
+      };
+    });
+  
+    return counts;
+  };
+
+  // Get statistics by noise type
+  const getNoiseTypeStats = () => {
+    const noiseTypes = ["Traffic", "Construction", "Industrial", "Music", "Other"];
+    const colorMap = {
+      "Traffic": "#3b82f6",      // Blue
+      "Construction": "#f97316", // Orange
+      "Industrial": "#6366f1",   // Indigo
+      "Music": "#ec4899",        // Pink
+      "Other": "#8b5cf6"         // Purple
+    };
+    
+    const stats = noiseTypes.map(type => {
+      const count = filteredReports.filter(report => report.noise_type === type).length;
+      return {
+        category: type,
+        count,
+        percentage: Math.round((count / filteredReports.length) * 100) || 0,
+        color: colorMap[type] || "#a3a3a3" // Default to gray if type not in map
+      };
+    });
+    
+    return stats;
   };
 
   // Export data function
@@ -442,185 +511,151 @@ const AdminPortal: React.FC = () => {
   };
 
   /**
-   * Load AI insights using DeepSeek integration
+   * Load AI insights using NoiseSense AI integration
    */
-  const loadAiInsights = async (reports: NoiseReport[]) => {
-    if (!reports || reports.length === 0) return;
+  const loadAIInsights = async (reports: NoiseReport[]) => {
+    if (!reports.length) return null;
     
-    setIsAiLoading(true);
     try {
-      // Get AI analytics and recommendations
-      const analytics = await getDeepSeekAnalytics(reports);
-      const recommendations = await getDeepSeekRecommendations(reports);
+      // Load AI insights using NoiseSense AI integration
+      const analytics = await getAIAnalytics(reports);
+      const recommendations = await getAIRecommendations(reports);
       
-      setAiInsights(analytics);
-      setAiRecommendations(recommendations);
+      return {
+        analytics,
+        recommendations
+      };
     } catch (error) {
       console.error("Error loading AI insights:", error);
-      toast({
-        variant: "destructive",
-        title: "AI Analysis Error",
-        description: "Could not load AI-powered insights. Please try again later."
-      });
-    } finally {
-      setIsAiLoading(false);
+      return null;
     }
   };
 
-  // Function to perform DeepSeek AI-powered search
-  const performDeepseekSearch = async () => {
-    if (!deepseekQuery.trim()) return;
+  // Function to perform AI-powered search
+  const performAiSearch = async () => {
+    if (!aiQuery.trim()) return;
     
-    setIsDeepseekSearching(true);
-    setDeepseekSearchResults([]);
-    setDeepseekExplanation("");
+    setIsAiSearching(true);
+    setAiSearchResults([]);
+    setAiExplanation("");
     
     try {
-      // Use the DeepSeek chat API to understand and process the query
-      const response = await chatWithDeepSeek(`I have a dataset of noise reports in Pune. Can you help me search for: ${deepseekQuery}. Return JSON format.`);
+      // Use the NoiseSense AI chat API to understand and process the query
+      const response = await chatWithAI([{
+        role: 'user',
+        content: `I have a dataset of noise reports in Pune. Can you help me search for: ${aiQuery}. Format your response as follows: First provide a brief explanation, then return a valid JSON object with a "results" array containing matching items. Example format: "Here's what I found... {"results": [...]}"` 
+      }]);
       
-      // Parse DeepSeek's query explanation
-      const explanationMatch = response.match(/.*?\{/s);
+      // Parse AI's query explanation
+      const explanationPattern = /(.+?)(?:\{|\[)/s;
+      const explanationMatch = response.match(explanationPattern);
+      
       if (explanationMatch) {
-        setDeepseekExplanation(explanationMatch[0].replace(/\{$/, '').trim());
+        setAiExplanation(explanationMatch[1].trim());
       }
       
-      // Extract any JSON from the response
-      const jsonMatch = response.match(/\{.*\}/s);
+      // Improved JSON extraction - try different patterns
+      let jsonData = null;
       
-      if (jsonMatch) {
-        try {
-          const searchCriteria = JSON.parse(jsonMatch[0]);
+      // Try to extract JSON with a more flexible approach
+      try {
+        // First try standard pattern
+        const jsonPattern = /(\{|\[)(.+?)(\}|\])(?:\s*$|\n)/s;
+        const jsonMatch = response.match(jsonPattern);
+        
+        if (jsonMatch) {
+          const jsonStr = response.substring(
+            response.indexOf(jsonMatch[1]),
+            response.lastIndexOf(jsonMatch[3]) + 1
+          );
+          jsonData = JSON.parse(jsonStr);
+        } else {
+          // Try to find anything that looks like JSON
+          const possibleJson = response.substring(
+            response.indexOf("{"),
+            response.lastIndexOf("}") + 1
+          );
           
-          // Apply the search criteria to filter noise reports
-          let results = [...noiseReports];
-          
-          // Filter by decibel range if provided
-          if (searchCriteria.minDecibel !== undefined) {
-            results = results.filter(r => r.decibel_level >= searchCriteria.minDecibel);
+          if (possibleJson && possibleJson.includes("{") && possibleJson.includes("}")) {
+            jsonData = JSON.parse(possibleJson);
           }
-          if (searchCriteria.maxDecibel !== undefined) {
-            results = results.filter(r => r.decibel_level <= searchCriteria.maxDecibel);
-          }
-          
-          // Filter by noise type if provided
-          if (searchCriteria.noiseType) {
-            const noiseTypes = Array.isArray(searchCriteria.noiseType) 
-              ? searchCriteria.noiseType 
-              : [searchCriteria.noiseType];
-            
-            results = results.filter(r => 
-              noiseTypes.some(type => 
-                r.noise_type.toLowerCase().includes(type.toLowerCase())
-              )
+        }
+      } catch (parseError) {
+        console.error("Error parsing JSON:", parseError);
+        // Continue to fallback
+      }
+      
+      // Process the JSON data if found
+      if (jsonData && jsonData.results && Array.isArray(jsonData.results)) {
+        const results = jsonData.results
+          .map((item: any) => {
+            // Try to find matching report by ID or characteristics
+            return noiseReports.find(report => 
+              (item.id && report.id === item.id) ||
+              (item.location && report.address && report.address.includes(item.location)) ||
+              (item.decibel && report.decibel_level === item.decibel) ||
+              (item.type && report.noise_type === item.type)
             );
-          }
+          })
+          .filter(Boolean);
           
-          // Filter by status if provided
-          if (searchCriteria.status) {
-            const statuses = Array.isArray(searchCriteria.status) 
-              ? searchCriteria.status 
-              : [searchCriteria.status];
-            
-            results = results.filter(r => 
-              statuses.some(status => 
-                r.status === status || 
-                (status === 'any' && r.status)
-              )
-            );
-          }
-          
-          // Filter by date range if provided
-          if (searchCriteria.startDate) {
-            const startDate = new Date(searchCriteria.startDate);
-            results = results.filter(r => new Date(r.created_at) >= startDate);
-          }
-          if (searchCriteria.endDate) {
-            const endDate = new Date(searchCriteria.endDate);
-            results = results.filter(r => new Date(r.created_at) <= endDate);
-          }
-          
-          // Apply location filtering if provided
-          if (searchCriteria.location) {
-            results = results.filter(r => 
-              r.address && r.address.toLowerCase().includes(searchCriteria.location.toLowerCase())
-            );
-          }
-          
-          // Check for any text matches
-          if (searchCriteria.textMatch) {
-            results = results.filter(r => 
-              (r.notes && r.notes.toLowerCase().includes(searchCriteria.textMatch.toLowerCase())) ||
-              (r.address && r.address.toLowerCase().includes(searchCriteria.textMatch.toLowerCase())) ||
-              r.noise_type.toLowerCase().includes(searchCriteria.textMatch.toLowerCase())
-            );
-          }
-          
-          setDeepseekSearchResults(results);
-        } catch (parseError) {
-          console.error("Error parsing DeepSeek JSON response:", parseError);
-          
-          // Fallback to basic keyword search
-          performBasicSearch();
+        setAiSearchResults(results);
+        
+        // If no results found after processing, fall back to keyword search
+        if (results.length === 0) {
+          console.log("No matches found from AI results, falling back to keyword search");
+          fallbackToKeywordSearch();
         }
       } else {
-        // Fallback to basic keyword search if no JSON format found
-        performBasicSearch();
+        console.error("Could not extract valid JSON from AI response:", response);
+        // Fall back to keyword search
+        fallbackToKeywordSearch();
       }
     } catch (error) {
-      console.error("Error performing DeepSeek search:", error);
-      toast({
-        variant: "destructive",
-        title: "Search Error",
-        description: "Unable to perform AI-powered search. Please try again."
-      });
-      
-      // Fallback to basic search
-      performBasicSearch();
+      console.error("Error performing AI search:", error);
+      // Fall back to keyword search
+      fallbackToKeywordSearch();
     } finally {
-      setIsDeepseekSearching(false);
+      setIsAiSearching(false);
     }
   };
   
   // Basic keyword search as fallback
-  const performBasicSearch = () => {
-    const terms = deepseekQuery.toLowerCase().split(' ');
+  const fallbackToKeywordSearch = () => {
+    const terms = aiQuery.toLowerCase().split(' ');
     
-    const results = noiseReports.filter(report => 
-      terms.some(term => 
+    // Simple keyword matching as fallback
+    const results = noiseReports.filter(report => {
+      return terms.some(term => 
         report.noise_type.toLowerCase().includes(term) ||
-        (report.address && report.address.toLowerCase().includes(term)) ||
         (report.notes && report.notes.toLowerCase().includes(term)) ||
-        report.status?.toLowerCase().includes(term) ||
-        report.id.toLowerCase().includes(term)
-      )
-    );
+        (report.address && report.address.toLowerCase().includes(term))
+      );
+    });
     
-    setDeepseekSearchResults(results);
+    setAiSearchResults(results);
   };
   
-  // Handle form submission for DeepSeek search
-  const handleDeepseekSearchSubmit = (e: React.FormEvent) => {
+  // Handle form submission for AI search
+  const handleAiSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    performDeepseekSearch();
+    performAiSearch();
   };
   
-  // Apply search results to filtered reports
-  const applySearchResults = () => {
-    if (deepseekSearchResults.length > 0) {
-      setFilteredReports(deepseekSearchResults);
-      setShowDeepseekSearch(false);
-      setStatusFilter("all"); // Reset other filters
-      setSearchTerm("");
-      setCurrentPage(1);
+  // Use useEffect for applying search results to avoid render-time state updates
+  useEffect(() => {
+    // Only proceed if there are actual results and they've changed from previous
+    if (aiSearchResults.length > 0) {
+      setFilteredReports(aiSearchResults);
+      setShowAiSearch(false);
       
       toast({
-        title: "Search Results Applied",
-        description: `Found ${deepseekSearchResults.length} matching reports`
+        title: "AI Search Results",
+        description: `Found ${aiSearchResults.length} matching reports`
       });
     }
-  };
-
+  }, [aiSearchResults]);
+  
   // Generate a report based on filters
   const generateReport = () => {
     setIsGeneratingReport(true);
@@ -784,6 +819,71 @@ const AdminPortal: React.FC = () => {
     });
   };
 
+  // Load settings from localStorage
+  useEffect(() => {
+    const loadSettings = () => {
+      try {
+        // Load notification settings
+        const storedNotificationSettings = localStorage.getItem('notificationSettings');
+        if (storedNotificationSettings) {
+          setNotificationSettings(JSON.parse(storedNotificationSettings));
+        }
+        
+        // Load system settings
+        const storedSystemSettings = localStorage.getItem('systemSettings');
+        if (storedSystemSettings) {
+          setSystemSettings(JSON.parse(storedSystemSettings));
+        }
+        
+        // Load AI settings
+        const storedAiSettings = localStorage.getItem('aiSettings');
+        if (storedAiSettings) {
+          setAiSettings(JSON.parse(storedAiSettings));
+        }
+        
+        // Load export settings
+        const storedExportSettings = localStorage.getItem('exportSettings');
+        if (storedExportSettings) {
+          setExportSettings(JSON.parse(storedExportSettings));
+        }
+      } catch (error) {
+        console.error("Error loading settings:", error);
+        toast({
+          title: "Failed to load settings",
+          description: "Some settings could not be loaded properly.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    };
+    
+    loadSettings();
+  }, []);
+
+  // Save all settings to localStorage
+  const saveSettings = () => {
+    try {
+      localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+      localStorage.setItem('systemSettings', JSON.stringify(systemSettings));
+      localStorage.setItem('aiSettings', JSON.stringify(aiSettings));
+      localStorage.setItem('exportSettings', JSON.stringify(exportSettings));
+      
+      toast({
+        title: "Settings saved",
+        description: "Your settings have been successfully saved.",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast({
+        title: "Failed to save settings",
+        description: "There was an error saving your settings.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -808,49 +908,10 @@ const AdminPortal: React.FC = () => {
       transition={{ duration: 0.4 }}
       className="container mx-auto py-6 px-4 space-y-6"
     >
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-y-2">
-        <div>
-          <h1 className="text-3xl font-bold">Admin Portal</h1>
-          <p className="text-muted-foreground">Manage noise reports and analyze data</p>
-        </div>
-        <div className="flex gap-2">
-          <Badge variant="outline" className="font-normal">Admin Access</Badge>
-          <div className="relative">
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={() => setShowExportOptions(!showExportOptions)}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Export Data
-            </Button>
-            
-            {showExportOptions && (
-              <div className="absolute right-0 mt-2 w-48 bg-background rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-10">
-                <div className="py-1">
-                  <button
-                    className="block w-full text-left px-4 py-2 text-sm hover:bg-accent"
-                    onClick={() => exportData('csv')}
-                  >
-                    Export as CSV
-                  </button>
-                  <button
-                    className="block w-full text-left px-4 py-2 text-sm hover:bg-accent"
-                    onClick={() => exportData('json')}
-                  >
-                    Export as JSON
-                  </button>
-                  <button
-                    className="block w-full text-left px-4 py-2 text-sm hover:bg-accent"
-                    onClick={() => exportData('pdf')}
-                  >
-                    Export as PDF
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          
+      {/* Admin Header */}
+      <div className="flex flex-wrap items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+        <div className="flex items-center space-x-2">
           <Button 
             size="sm" 
             variant="outline"
@@ -876,94 +937,151 @@ const AdminPortal: React.FC = () => {
         </div>
       </div>
 
-      <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-4 mb-6 w-full md:w-auto">
-          <TabsTrigger value="visualAnalytics">
-            <MapIcon className="mr-2 h-4 w-4 hidden md:inline" />
-            Visual Analytics
+      {/* Main Content Tabs */}
+      <Tabs defaultValue="dashboard" className="w-full">
+        <TabsList className="mb-4 w-full justify-start overflow-x-auto">
+          <TabsTrigger value="dashboard">
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            Dashboard
           </TabsTrigger>
-          <TabsTrigger value="aiAnalytics">
-            <Brain className="mr-2 h-4 w-4 hidden md:inline" />
-            AI Analytics
+          <TabsTrigger value="map-analytics">
+            <Map className="mr-2 h-4 w-4" />
+            Map Analytics
           </TabsTrigger>
-          <TabsTrigger value="reportGenerator">
-            <FileText className="mr-2 h-4 w-4 hidden md:inline" />
+          <TabsTrigger value="charts">
+            <BarChart2 className="mr-2 h-4 w-4" />
+            Charts & Trends
+          </TabsTrigger>
+          <TabsTrigger value="ai-insights">
+            <BrainCircuit className="mr-2 h-4 w-4" />
+            NoiseSense AI Insights
+          </TabsTrigger>
+          <TabsTrigger value="reports">
+            <FileText className="mr-2 h-4 w-4" />
             Reports
           </TabsTrigger>
           <TabsTrigger value="settings">
-            <Settings className="mr-2 h-4 w-4 hidden md:inline" />
+            <Settings className="mr-2 h-4 w-4" />
             Settings
           </TabsTrigger>
         </TabsList>
         
-        {/* Visual Analytics Tab */}
-        <TabsContent value="visualAnalytics" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard" className="space-y-6">
+          {/* Dashboard content here */}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Total Reports</CardDescription>
-                <CardTitle className="text-2xl truncate">{stats?.total || 0}</CardTitle>
+              <CardHeader>
+                <CardTitle>Noise Report Trends</CardTitle>
+                <CardDescription>Reports over the past 30 days</CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground truncate">
-                  Noise reports collected
-                </p>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={[
+                      { date: "01/05", reports: 21 },
+                      { date: "05/05", reports: 35 },
+                      { date: "10/05", reports: 45 },
+                      { date: "15/05", reports: 25 },
+                      { date: "20/05", reports: 38 },
+                      { date: "25/05", reports: 52 },
+                      { date: "30/05", reports: 41 },
+                    ]}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorReports" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="reports" stroke="var(--color-primary)" fillOpacity={1} fill="url(#colorReports)" />
+                  </AreaChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
             
             <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Average Noise Level</CardDescription>
-                <CardTitle className="text-2xl truncate">{stats?.avgDecibel || 0} dB</CardTitle>
+              <CardHeader>
+                <CardTitle>Noise Types Distribution</CardTitle>
+                <CardDescription>Breakdown by categories</CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground truncate">
-                  Average measured decibel level
-                </p>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={getNoiseLevelCategories()}
+                      dataKey="count"
+                      nameKey="category"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label
+                    >
+                      {getNoiseLevelCategories().map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
             
             <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Dangerous Noise Reports</CardDescription>
-                <CardTitle className="text-2xl truncate">{stats?.dangerousCount || 0}</CardTitle>
+              <CardHeader>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>Latest reports and actions</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive">80+ dB</Badge>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {Math.round((stats?.dangerousCount || 0) / (stats?.total || 1) * 100)}% of total
-                  </p>
+                <div className="space-y-4">
+                  {noiseReports.slice(0, 5).map((report, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <div className={`w-2 h-2 mt-1.5 rounded-full ${
+                        report.status === 'resolved' ? 'bg-green-500' : 
+                        report.status === 'pending' ? 'bg-orange-500' : 'bg-red-500'
+                      }`}></div>
+                      <div className="flex-1">
+                        <div className="flex justify-between">
+                          <p className="text-sm font-medium">{report.noise_type}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(report.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{report.address}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardDescription>Common Noise Type</CardDescription>
-                <CardTitle className="text-2xl truncate">{stats?.mostCommonType || "N/A"}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground truncate">
-                  Most frequently reported noise
-                </p>
-              </CardContent>
+              <CardFooter>
+                <Button variant="ghost" size="sm" className="w-full">
+                  View All Reports
+                </Button>
+              </CardFooter>
             </Card>
           </div>
-
-          {/* Noise Map Visualization */}
+        </TabsContent>
+        
+        {/* Map Analytics Tab */}
+        <TabsContent value="map-analytics" className="space-y-6">
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Map className="mr-2 h-5 w-5 text-primary" />
-                Noise Heatmap
+                Noise Heatmap Visualization
               </CardTitle>
               <CardDescription>
                 Geographical distribution of noise reports across Pune
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[500px] rounded-md overflow-hidden border bg-muted/20">
+              <div className="h-[550px] rounded-md overflow-hidden border border-muted">
                 <NoiseLevelsMap data={noiseReports} />
               </div>
               
@@ -987,426 +1105,574 @@ const AdminPortal: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-          
-          {/* Time Series Chart */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Activity className="mr-2 h-5 w-5 text-primary" />
-                Noise Level Time Trends
-              </CardTitle>
-              <CardDescription>
-                Noise level patterns over time showing daily and weekly trends
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <NoiseTimeSeriesChart 
-                  data={noiseReports.map(report => ({
-                    time: new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    avgLevel: report.decibel_level,
-                    maxLevel: report.decibel_level + 5, // Simulated max level
-                    minLevel: Math.max(report.decibel_level - 10, 0), // Simulated min level
-                    range: 10,
-                    count: 1,
-                    primaryNoiseType: report.noise_type
-                  }))}
-                  title="" 
-                  description=""
-                />
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Distribution Charts */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <Card className="h-full">
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <PieChart className="mr-2 h-5 w-5 text-primary" />
-                  Noise Type Distribution
-                </CardTitle>
-                <CardDescription>
-                  Breakdown of noise reports by source type
-                </CardDescription>
+                <CardTitle>Noise Distribution</CardTitle>
+                <CardDescription>By area and density</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { area: "Koregaon Park", value: 65 },
+                      { area: "Hinjewadi", value: 85 },
+                      { area: "Kothrud", value: 45 },
+                      { area: "Viman Nagar", value: 75 },
+                      { area: "Baner", value: 62 },
+                    ]}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
+                  >
+                    <XAxis dataKey="area" angle={-45} textAnchor="end" />
+                    <YAxis />
+                    <Tooltip />
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <Bar dataKey="value" fill="var(--color-primary)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Hotspot Analysis</CardTitle>
+                <CardDescription>Top noise complaint locations</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px]">
-                  <NoisePieChart 
-                    data={noiseReports}
-                    title=""
-                  />
+                <div className="space-y-4">
+                  {PUNE_AREAS.slice(0, 6).map((area, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">{area.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 h-2 rounded-full bg-muted overflow-hidden">
+                          <div 
+                            className="h-full bg-primary" 
+                            style={{width: `${Math.round(Math.random() * 100)}%`}}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-medium">
+                          {Math.round(30 + Math.random() * 70)} reports
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
             
-            <Card className="h-full">
+            <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <BarChart2 className="mr-2 h-5 w-5 text-primary" />
-                  Noise Level Analysis
-                </CardTitle>
-                <CardDescription>
-                  Analysis by decibel level intensity
-                </CardDescription>
+                <CardTitle>Time Distribution</CardTitle>
+                <CardDescription>Reports by time of day</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <NoiseBarChart 
-                    data={noiseReports}
-                    title=""
-                  />
-                </div>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={[
+                      { time: "12 AM", value: 10 },
+                      { time: "3 AM", value: 5 },
+                      { time: "6 AM", value: 15 },
+                      { time: "9 AM", value: 42 },
+                      { time: "12 PM", value: 35 },
+                      { time: "3 PM", value: 45 },
+                      { time: "6 PM", value: 58 },
+                      { time: "9 PM", value: 40 },
+                    ]}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
+                  >
+                    <XAxis dataKey="time" />
+                    <YAxis />
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="var(--color-primary)" />
+                  </LineChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
-          
-          {/* Noise Heatmap Chart (Time-based) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Clock className="mr-2 h-5 w-5 text-primary" />
-                Noise Time Distribution
-              </CardTitle>
-              <CardDescription>
-                Heatmap showing noise patterns by time of day and day of week
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <NoiseHeatmapChart 
-                data={noiseReports}
-                title=""
-              />
-            </CardContent>
-          </Card>
         </TabsContent>
         
-        {/* AI Analytics Tab */}
-        <TabsContent value="aiAnalytics" className="space-y-6">
-          {/* DeepSeek AI Insights */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Brain className="mr-2 h-5 w-5 text-primary" />
-                DeepSeek AI Insights
-                <Badge className="ml-2" variant="outline">Enterprise</Badge>
-              </CardTitle>
-              <CardDescription>
-                Advanced AI-powered noise pollution analysis and recommendations
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isAiLoading ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                  <p className="text-sm text-muted-foreground">
-                    DeepSeek AI is analyzing your noise data...
-                  </p>
-                </div>
-              ) : !aiInsights ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <AlertTriangleIcon className="h-8 w-8 text-amber-500 mb-4" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    No AI insights available. Please load data first.
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => loadAiInsights(noiseReports)}
+        {/* Charts & Trends Tab */}
+        <TabsContent value="charts" className="space-y-6">
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Activity className="mr-2 h-5 w-5 text-primary" />
+                  Noise Level Trends
+                </CardTitle>
+                <CardDescription>
+                  Daily and weekly patterns in noise levels across Pune
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={[
+                      { day: "Mon", morning: 58, afternoon: 65, evening: 75 },
+                      { day: "Tue", morning: 62, afternoon: 68, evening: 80 },
+                      { day: "Wed", morning: 60, afternoon: 70, evening: 76 },
+                      { day: "Thu", morning: 65, afternoon: 72, evening: 82 },
+                      { day: "Fri", morning: 68, afternoon: 75, evening: 88 },
+                      { day: "Sat", morning: 55, afternoon: 78, evening: 85 },
+                      { day: "Sun", morning: 50, afternoon: 65, evening: 70 }
+                    ]}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                   >
-                    Generate AI Insights
-                  </Button>
-                </div>
-              ) : (
-                <Tabs defaultValue="summary" className="w-full">
-                  <TabsList className="grid grid-cols-5 mb-4">
-                    <TabsTrigger value="summary">Summary</TabsTrigger>
-                    <TabsTrigger value="predictions">Predictions</TabsTrigger>
-                    <TabsTrigger value="insights">Insights</TabsTrigger>
-                    <TabsTrigger value="anomalies">Anomalies</TabsTrigger>
-                    <TabsTrigger value="actions">Actions</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="summary">
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <p className="text-muted-foreground mb-4">AI-generated analysis based on {noiseReports.length} noise reports</p>
-                      <ReactMarkdown>
-                        {aiRecommendations}
-                      </ReactMarkdown>
-                    </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="predictions">
-                    <div className="space-y-4">
-                      <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart
-                            data={aiInsights.predictions}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 10 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                            <XAxis 
-                              dataKey="date" 
-                              tickFormatter={(date) => new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            />
-                            <YAxis domain={['auto', 'auto']} />
-                            <Tooltip 
-                              formatter={(value: number) => [`${value} dB`, 'Predicted Level']}
-                              labelFormatter={(date) => new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                            />
-                            <Line 
-                              type="monotone" 
-                              dataKey="predictedLevel" 
-                              stroke="#8884d8" 
-                              strokeWidth={2}
-                              dot={{ r: 4 }}
-                              activeDot={{ r: 6 }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
+                    <defs>
+                      <linearGradient id="colorMorning" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorAfternoon" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorEvening" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} />
+                    <XAxis dataKey="day" tick={{ fill: 'var(--muted-foreground)' }} />
+                    <YAxis label={{ value: 'Decibels (dB)', angle: -90, position: 'insideLeft', style: { fill: 'var(--muted-foreground)' } }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                      labelStyle={{ color: 'var(--foreground)' }}
+                      formatter={(value) => [`${value} dB`, '']}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: 10 }} />
+                    <Area type="monotone" dataKey="morning" name="Morning (6-12)" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorMorning)" />
+                    <Area type="monotone" dataKey="afternoon" name="Afternoon (12-18)" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorAfternoon)" />
+                    <Area type="monotone" dataKey="evening" name="Evening (18-24)" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorEvening)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <BarChart2 className="mr-2 h-5 w-5 text-primary" />
+                  Noise Source Distribution
+                </CardTitle>
+                <CardDescription>
+                  Breakdown by noise source category and intensity
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { category: 'Traffic', count: 215, color: '#3b82f6' },
+                      { category: 'Construction', count: 160, color: '#f59e0b' },
+                      { category: 'Industrial', count: 95, color: '#ef4444' },
+                      { category: 'Events', count: 75, color: '#8b5cf6' },
+                      { category: 'Loudspeakers', count: 65, color: '#ec4899' },
+                      { category: 'Restaurant/Bar', count: 55, color: '#14b8a6' },
+                      { category: 'Other', count: 35, color: '#64748b' }
+                    ]}
+                    layout="vertical"
+                    margin={{ top: 10, right: 30, left: 100, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border)" opacity={0.6} />
+                    <XAxis type="number" tick={{ fill: 'var(--muted-foreground)' }} />
+                    <YAxis dataKey="category" type="category" scale="band" tick={{ fill: 'var(--muted-foreground)' }} width={90} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                      labelStyle={{ color: 'var(--foreground)' }}
+                      formatter={(value) => [`${value} reports`, '']}
+                    />
+                    <Legend />
+                    <Bar dataKey="count" name="Number of Reports">
+                      {
+                        [
+                          { category: 'Traffic', count: 215, color: '#3b82f6' },
+                          { category: 'Construction', count: 160, color: '#f59e0b' },
+                          { category: 'Industrial', count: 95, color: '#ef4444' },
+                          { category: 'Events', count: 75, color: '#8b5cf6' },
+                          { category: 'Loudspeakers', count: 65, color: '#ec4899' },
+                          { category: 'Restaurant/Bar', count: 55, color: '#14b8a6' },
+                          { category: 'Other', count: 35, color: '#64748b' }
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))
+                      }
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <MapIcon className="mr-2 h-5 w-5 text-primary" />
+                  Area-Based Noise Comparison
+                </CardTitle>
+                <CardDescription>
+                  Comparative analysis of different areas in Pune
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={PUNE_AREAS.map(area => ({
+                      name: area.name,
+                      avgNoise: Math.round(60 + Math.random() * 30),
+                      peakNoise: Math.round(75 + Math.random() * 30)
+                    }))}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} />
+                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fill: 'var(--muted-foreground)' }} />
+                    <YAxis 
+                      label={{ value: 'Decibels (dB)', angle: -90, position: 'insideLeft', style: { fill: 'var(--muted-foreground)' } }}
+                      domain={[50, 90]} 
+                      tick={{ fill: 'var(--muted-foreground)' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                      labelStyle={{ color: 'var(--foreground)' }}
+                      formatter={(value) => [`${value} dB`, '']}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: 20 }} />
+                    <Bar dataKey="avgNoise" name="Average Noise" fill="#3b82f6" />
+                    <Bar dataKey="peakNoise" name="Peak Noise" fill="#ef4444" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <div className="col-span-1 md:col-span-2">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Time-of-Day Noise Patterns</CardTitle>
+                  <CardDescription>Noise intensity by hour and day of week</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[250px] w-full">
+                    {/* Compact Time-of-Day Heatmap */}
+                    <div className="grid grid-cols-8 gap-1 h-full">
+                      {/* Time labels on the left */}
+                      <div className="col-span-1 grid grid-rows-6 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-end pr-2">Morning</div>
+                        <div className="flex items-center justify-end pr-2">Noon</div>
+                        <div className="flex items-center justify-end pr-2">Afternoon</div>
+                        <div className="flex items-center justify-end pr-2">Evening</div>
+                        <div className="flex items-center justify-end pr-2">Night</div>
+                        <div className="flex items-center justify-end pr-2">Late Night</div>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {aiInsights.predictions.map((prediction, idx) => (
-                          <div key={idx} className="border rounded-lg p-3 bg-card">
-                            <p className="font-medium">{new Date(prediction.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
-                            <div className="mt-2 flex items-center justify-between gap-2">
-                              <Badge variant="outline" className="font-mono">
-                                {prediction.predictedLevel} dB
-                              </Badge>
-                              <span className="text-sm text-muted-foreground">
-                                {prediction.confidence}% confidence
-                              </span>
-                            </div>
+                      {/* Heatmap grid */}
+                      <div className="col-span-7 grid grid-cols-7 gap-1 h-full">
+                        {/* Day labels on top */}
+                        <div className="col-span-7 grid grid-cols-7 text-xs text-center text-muted-foreground pb-1">
+                          <div>Mon</div>
+                          <div>Tue</div>
+                          <div>Wed</div>
+                          <div>Thu</div>
+                          <div>Fri</div>
+                          <div>Sat</div>
+                          <div>Sun</div>
+                        </div>
+                        
+                        {/* Actual heatmap cells */}
+                        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, dayIndex) => (
+                          <div key={day} className="grid grid-rows-6 gap-1 w-full">
+                            {[
+                              {timeRange: "5-9", label: "Morning"},
+                              {timeRange: "9-12", label: "Noon"},
+                              {timeRange: "12-16", label: "Afternoon"},
+                              {timeRange: "16-20", label: "Evening"},
+                              {timeRange: "20-24", label: "Night"},
+                              {timeRange: "0-5", label: "Late Night"}
+                            ].map((timeSlot, timeIndex) => {
+                              // Intensity calculation based on day and time
+                              // In a real app, this would come from actual data
+                              let intensity;
+                              
+                              // Simulate noise patterns (higher on weekends and evenings)
+                              if (dayIndex >= 5) { // Weekend
+                                intensity = timeIndex === 3 || timeIndex === 4 ? 0.9 : 
+                                           timeIndex === 2 ? 0.7 : 
+                                           timeIndex === 5 ? 0.8 : 0.5;
+                              } else { // Weekday
+                                intensity = timeIndex === 3 ? 0.8 : 
+                                           timeIndex === 2 || timeIndex === 4 ? 0.6 : 
+                                           timeIndex === 5 ? 0.3 : 0.4;
+                              }
+                              
+                              // Apply traffic patterns for morning/evening rush hours
+                              if ((timeIndex === 0 || timeIndex === 3) && dayIndex < 5) {
+                                intensity += 0.15; // Rush hours on weekdays
+                              }
+                              
+                              // Clamp intensity between 0-1
+                              intensity = Math.min(1, Math.max(0, intensity));
+                              
+                              // Color based on intensity
+                              const getHeatmapColor = (value) => {
+                                // Generate a color from green to red based on intensity
+                                if (value < 0.3) return "#4ade80"; // Green
+                                if (value < 0.5) return "#facc15"; // Yellow
+                                if (value < 0.7) return "#fb923c"; // Orange
+                                if (value < 0.85) return "#f87171"; // Light red
+                                return "#ef4444"; // Red
+                              };
+                              
+                              return (
+                                <div 
+                                  key={`${day}-${timeSlot.timeRange}`}
+                                  className="w-full rounded-sm flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity"
+                                  style={{ 
+                                    backgroundColor: getHeatmapColor(intensity),
+                                    opacity: 0.3 + (intensity * 0.7) // Scale opacity for visual effect
+                                  }}
+                                  title={`${day} ${timeSlot.label}: ${Math.round(intensity * 100)}% noise level`}
+                                >
+                                  {intensity > 0.7 && (
+                                    <span className="text-[8px] font-bold text-white">
+                                      {Math.round(intensity * 100)}%
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         ))}
                       </div>
                     </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="insights">
-                    <div className="space-y-4">
-                      {aiInsights.insights.map((insight, idx) => (
-                        <div
-                          key={idx}
-                          className={`p-4 rounded-lg ${
-                            insight.category === 'trend' ? 'bg-blue-50 dark:bg-blue-900/20' :
-                            insight.category === 'anomaly' ? 'bg-amber-50 dark:bg-amber-900/20' :
-                            insight.category === 'recommendation' ? 'bg-green-50 dark:bg-green-900/20' :
-                            'bg-purple-50 dark:bg-purple-900/20'
-                          } border-l-4 ${
-                            insight.category === 'trend' ? 'border-blue-500' :
-                            insight.category === 'anomaly' ? 'border-amber-500' :
-                            insight.category === 'recommendation' ? 'border-green-500' :
-                            'border-purple-500'
-                          }`}
-                        >
-                          <div className="flex gap-3">
-                            {insight.category === 'trend' ? (
-                              <TrendingUpIcon className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                            ) : insight.category === 'anomaly' ? (
-                              <AlertTriangleIcon className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                            ) : insight.category === 'recommendation' ? (
-                              <LightbulbIcon className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                            ) : (
-                              <ActivityIcon className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
-                            )}
-                            <div className="space-y-1">
-                              <p className="text-sm font-medium">{insight.text}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Relevance: {Math.round(insight.relevance * 100)}%
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                  </div>
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#4ade80" }}></div>
+                      <span>Low</span>
                     </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="anomalies">
-                    <div className="space-y-4">
-                      {aiInsights.anomalies.map((anomaly, idx) => (
-                        <Card key={idx}>
-                          <CardContent className="p-4">
-                            <div className="flex items-start gap-3">
-                              <div className={`text-amber-500 rounded-full w-8 h-8 flex items-center justify-center bg-amber-100 dark:bg-amber-900/30 flex-shrink-0`}>
-                                <AlertTriangleIcon className="h-4 w-4" />
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <p className="font-medium">{new Date(anomaly.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
-                                  <Badge variant={anomaly.severity > 0.8 ? "destructive" : "default"} className="ml-2">
-                                    {Math.round(anomaly.severity * 100)}% severity
-                                  </Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground">{anomaly.description}</p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#facc15" }}></div>
+                      <span>Moderate</span>
                     </div>
-                  </TabsContent>
-                  
-                  <TabsContent value="actions">
-                    <div className="space-y-4">
-                      {aiInsights.recommendedActions.map((action, idx) => (
-                        <div key={idx} className="flex items-start gap-3 p-4 bg-card rounded-lg border">
-                          <div className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
-                            {idx + 1}
-                          </div>
-                          <div>
-                            <p className="text-sm">{action}</p>
-                          </div>
-                        </div>
-                      ))}
-
-                      <div className="mt-6 pt-6 border-t">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">Forward to stakeholders</h4>
-                            <p className="text-sm text-muted-foreground">Send this analysis to relevant departments</p>
-                          </div>
-                          <Button onClick={() => setShowForwardDialog(true)}>
-                            <Share2 className="h-4 w-4 mr-2" />
-                            Share Report
-                          </Button>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#fb923c" }}></div>
+                      <span>High</span>
                     </div>
-                  </TabsContent>
-                </Tabs>
-              )}
-            </CardContent>
-          </Card>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#ef4444" }}></div>
+                      <span>Very High</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
           
-          {/* AI-Powered Search */}
-          <Card className="mb-6">
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <SearchIcon className="mr-2 h-5 w-5 text-primary" />
-                AI-Powered Search
+                <TrendingUpIcon className="mr-2 h-5 w-5 text-primary" />
+                Annual Noise Pollution Trends
               </CardTitle>
               <CardDescription>
-                Use natural language to search through noise reports
+                Long-term analysis of noise pollution in Pune with seasonal patterns
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={[
+                    { month: "Jan", traffic: 65, construction: 55, industrial: 70, events: 60 },
+                    { month: "Feb", traffic: 68, construction: 58, industrial: 72, events: 62 },
+                    { month: "Mar", traffic: 70, construction: 65, industrial: 75, events: 68 },
+                    { month: "Apr", traffic: 72, construction: 70, industrial: 78, events: 75 },
+                    { month: "May", traffic: 75, construction: 72, industrial: 80, events: 80 },
+                    { month: "Jun", traffic: 68, construction: 60, industrial: 72, events: 72 },
+                    { month: "Jul", traffic: 62, construction: 52, industrial: 68, events: 65 },
+                    { month: "Aug", traffic: 60, construction: 50, industrial: 65, events: 60 },
+                    { month: "Sep", traffic: 65, construction: 58, industrial: 70, events: 68 },
+                    { month: "Oct", traffic: 70, construction: 65, industrial: 75, events: 78 },
+                    { month: "Nov", traffic: 75, construction: 70, industrial: 78, events: 82 },
+                    { month: "Dec", traffic: 80, construction: 72, industrial: 82, events: 85 }
+                  ]}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} />
+                  <XAxis dataKey="month" tick={{ fill: 'var(--muted-foreground)' }} />
+                  <YAxis 
+                    label={{ value: 'Average dB', angle: -90, position: 'insideLeft', style: { fill: 'var(--muted-foreground)' } }}
+                    domain={[50, 90]} 
+                    tick={{ fill: 'var(--muted-foreground)' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                    labelStyle={{ color: 'var(--foreground)' }}
+                    formatter={(value) => [`${value} dB`, '']}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: 10 }} />
+                  <Line type="monotone" dataKey="traffic" name="Traffic Noise" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="construction" name="Construction Noise" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="industrial" name="Industrial Noise" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444', r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="events" name="Events & Festivals" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6', r: 4 }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* NoiseSense AI Insights Tab */}
+        <TabsContent value="ai-insights" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="md:col-span-2 lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <BrainCircuit className="mr-2 h-5 w-5 text-primary" />
+                  NoiseSense AI Assistant
+                </CardTitle>
+                <CardDescription>
+                  Ask questions about noise data to get AI-powered insights
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleAiSearchSubmit} className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      placeholder="Ask a question about noise data (e.g., 'Show me high noise areas at night')"
+                      value={aiQuery}
+                      onChange={e => setAiQuery(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button type="submit" disabled={isAiSearching}>
+                      {isAiSearching ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {aiExplanation && (
+                    <Alert>
+                      <Brain className="h-4 w-4" />
+                      <AlertDescription>
+                        {aiExplanation}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  {aiSearchResults.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="text-sm font-medium mb-2">AI Search Results</h3>
+                      <div className="border rounded-md overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Location</TableHead>
+                              <TableHead>dB Level</TableHead>
+                              <TableHead>Date</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {aiSearchResults.slice(0, 5).map((result, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell>{result.noise_type}</TableCell>
+                                <TableCell className="truncate max-w-[150px]">{result.address}</TableCell>
+                                <TableCell>{result.decibel_level} dB</TableCell>
+                                <TableCell>{new Date(result.created_at).toLocaleDateString()}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Predictions</CardTitle>
+                <CardDescription>Forecasted noise trends</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={[
+                      { month: "Jan", actual: 58, predicted: null },
+                      { month: "Feb", actual: 62, predicted: null },
+                      { month: "Mar", actual: 65, predicted: null },
+                      { month: "Apr", actual: 70, predicted: null },
+                      { month: "May", actual: 75, predicted: null },
+                      { month: "Jun", actual: 80, predicted: null },
+                      { month: "Jul", actual: null, predicted: 78 },
+                      { month: "Aug", actual: null, predicted: 75 },
+                      { month: "Sep", actual: null, predicted: 80 },
+                      { month: "Oct", actual: null, predicted: 85 },
+                      { month: "Nov", actual: null, predicted: 70 },
+                      { month: "Dec", actual: null, predicted: 65 },
+                    ]}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="actual" stroke="#8884d8" />
+                    <Line type="monotone" dataKey="predicted" stroke="#82ca9d" strokeDasharray="5 5" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Brain className="mr-2 h-5 w-5 text-primary" />
+                AI Generated Insights
+              </CardTitle>
+              <CardDescription>
+                Automatically generated observations and recommendations
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleDeepseekSearchSubmit} className="space-y-4">
-                <div className="flex gap-2">
-                  <Input 
-                    placeholder="e.g., 'High decibel traffic noise reports from last week'" 
-                    value={deepseekQuery}
-                    onChange={(e) => setDeepseekQuery(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button type="submit" disabled={isDeepseekSearching || !deepseekQuery.trim()}>
-                    {isDeepseekSearching ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <SearchIcon className="h-4 w-4" />
-                    )}
-                    <span className="ml-2 hidden md:inline">Search</span>
-                  </Button>
+              <div className="space-y-4">
+                <div className="p-4 border rounded-md bg-muted/40">
+                  <h3 className="text-base font-medium mb-2">Key Findings</h3>
+                  <ul className="space-y-2 list-disc pl-4">
+                    <li>Traffic noise is the most reported issue across Pune, accounting for 38% of all reports</li>
+                    <li>Construction noise complaints have increased by 25% in the last month</li>
+                    <li>The average noise level in Hinjewadi IT Park is 72dB, exceeding recommended levels</li>
+                    <li>Evening hours (6-10 PM) show the highest concentration of noise complaints</li>
+                    <li>82% of dangerous noise level reports (80+ dB) are from industrial and construction sources</li>
+                  </ul>
                 </div>
                 
-                {/* Quick search suggestions */}
-                <div className="flex flex-wrap gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    type="button"
-                    onClick={() => setDeepseekQuery("High noise levels in residential areas")}
-                  >
-                    High noise in residential
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    type="button"
-                    onClick={() => setDeepseekQuery("Unresolved traffic noise reports")}
-                  >
-                    Unresolved traffic noise
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    type="button"
-                    onClick={() => setDeepseekQuery("Reports above 80dB in the last week")}
-                  >
-                    &gt;80dB last week
-                  </Button>
+                <div className="p-4 border rounded-md bg-muted/40">
+                  <h3 className="text-base font-medium mb-2">AI Recommendations</h3>
+                  <ul className="space-y-2 list-disc pl-4">
+                    <li>Increase enforcement of noise regulations in Hinjewadi area during evening hours</li>
+                    <li>Implement sound barriers along main traffic corridors in Koregaon Park</li>
+                    <li>Review construction permits in residential areas to limit working hours</li>
+                    <li>Deploy mobile noise monitoring stations to the top 5 hotspots</li>
+                    <li>Launch a public awareness campaign targeting vehicle noise reduction</li>
+                  </ul>
                 </div>
                 
-                {deepseekExplanation && (
-                  <Alert variant="default" className="bg-card mt-4">
-                    <Brain className="h-4 w-4 text-primary" />
-                    <AlertTitle>AI Search Understanding</AlertTitle>
-                    <AlertDescription className="text-sm">
-                      {deepseekExplanation}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                
-                {isDeepseekSearching ? (
-                  <div className="flex items-center justify-center p-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="ml-2 text-muted-foreground">Searching...</span>
-                  </div>
-                ) : deepseekSearchResults.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium">Found {deepseekSearchResults.length} matching reports</p>
-                      <Button size="sm" onClick={applySearchResults}>
-                        Apply Results
-                      </Button>
-                    </div>
-                    
-                    <div className="border rounded-md">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>dB Level</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {deepseekSearchResults.slice(0, 5).map((report) => (
-                            <TableRow key={report.id}>
-                              <TableCell className="font-medium">{report.id.substring(0, 8)}...</TableCell>
-                              <TableCell>{new Date(report.created_at).toLocaleDateString()}</TableCell>
-                              <TableCell>{report.noise_type}</TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    report.decibel_level >= 80 ? "destructive" :
-                                    report.decibel_level >= 65 ? "default" :
-                                    "outline"
-                                  }
-                                >
-                                  {report.decibel_level} dB
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          {deepseekSearchResults.length > 5 && (
-                            <TableRow>
-                              <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
-                                + {deepseekSearchResults.length - 5} more reports
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-              </form>
+                <div className="p-4 border rounded-md bg-muted/40">
+                  <h3 className="text-base font-medium mb-2">Noise Impact Analysis</h3>
+                  <p>The AI analysis indicates that current noise levels in 28% of monitored areas exceed WHO recommendations for urban environments, potentially impacting public health. Continuous exposure above 70dB is linked to stress, sleep disturbances, and potential hearing damage.</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
           
-          {/* Correlation Analysis */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -1418,747 +1684,301 @@ const AdminPortal: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isAiLoading ? (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : !aiInsights?.correlations ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <p className="text-muted-foreground mb-2">No correlation data available</p>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => loadAiInsights(noiseReports)}
-                  >
-                    Generate Correlations
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {aiInsights.correlations.map((correlation, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">{correlation.factor}</span>
-                        </div>
-                        <span className="text-sm font-medium">
-                          {(correlation.correlationStrength * 100).toFixed(0)}% correlation
-                        </span>
+              <div className="space-y-6">
+                {[
+                  { factor: "Traffic Density", correlationStrength: 0.85, description: "Strong correlation between traffic volume and noise levels" },
+                  { factor: "Time of Day", correlationStrength: 0.72, description: "Peak noise levels align with rush hours (9 AM and 6 PM)" },
+                  { factor: "Construction Activity", correlationStrength: 0.68, description: "Areas with active construction show elevated noise levels" },
+                  { factor: "Population Density", correlationStrength: 0.64, description: "Higher population areas generally report more noise issues" },
+                  { factor: "Commercial Zoning", correlationStrength: 0.59, description: "Commercial zones show higher noise levels after business hours" }
+                ].map((correlation, idx) => (
+                  <div key={idx} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{correlation.factor}</span>
                       </div>
-                      <Progress value={correlation.correlationStrength * 100} className="h-2" />
-                      <p className="text-sm text-muted-foreground">{correlation.description}</p>
+                      <span className="text-sm font-medium">
+                        {(correlation.correlationStrength * 100).toFixed(0)}% correlation
+                      </span>
                     </div>
-                  ))}
+                    <Progress value={correlation.correlationStrength * 100} className="h-2" />
+                    <p className="text-sm text-muted-foreground">{correlation.description}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Reports Tab */}
+        <TabsContent value="reports" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <h2 className="text-xl font-semibold">Noise Reports</h2>
+              <Badge variant="outline" className="font-normal">
+                {filteredReports.length} reports
+              </Badge>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={() => setShowAiSearch(true)}>
+                <Brain className="mr-2 h-4 w-4" />
+                AI Search
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowExportOptions(!showExportOptions)}>
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+              {showExportOptions && (
+                <div className="absolute right-4 mt-28 z-50 bg-background rounded-md shadow-md border border-border p-2 flex flex-col space-y-1">
+                  <Button variant="ghost" size="sm" className="justify-start" onClick={() => exportData('csv')}>
+                    CSV Format
+                  </Button>
+                  <Button variant="ghost" size="sm" className="justify-start" onClick={() => exportData('json')}>
+                    JSON Format
+                  </Button>
+                  <Button variant="ghost" size="sm" className="justify-start" onClick={() => exportData('pdf')}>
+                    PDF Format
+                  </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Report Generator Tab */}
-        <TabsContent value="reportGenerator" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Report Filters Panel */}
-            <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Filter className="mr-2 h-5 w-5 text-primary" />
-                  Report Filters
-                </CardTitle>
-                <CardDescription>
-                  Configure filters to generate custom reports
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Report Type</Label>
-                  <div className="grid grid-cols-1 gap-2">
-                    <Button 
-                      variant={reportType === "summary" ? "default" : "outline"} 
-                      className="justify-start"
-                      onClick={() => setReportType("summary")}
-                    >
-                      <BarChart2 className="h-4 w-4 mr-2" />
-                      Summary Report
-                    </Button>
-                    <Button 
-                      variant={reportType === "detailed" ? "default" : "outline"} 
-                      className="justify-start"
-                      onClick={() => setReportType("detailed")}
-                    >
-                      <ActivityIcon className="h-4 w-4 mr-2" />
-                      Detailed Analysis
-                    </Button>
-                    <Button 
-                      variant={reportType === "custom" ? "default" : "outline"} 
-                      className="justify-start"
-                      onClick={() => setReportType("custom")}
-                    >
-                      <Filter className="h-4 w-4 mr-2" />
-                      Custom Report
-                    </Button>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <Label>Date Range</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className="w-full justify-start text-left font-normal mt-1"
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        {reportFilters.dateRange?.from ? (
-                          reportFilters.dateRange.to ? (
-                            <>
-                              {reportFilters.dateRange.from.toLocaleDateString()} -{" "}
-                              {reportFilters.dateRange.to.toLocaleDateString()}
-                            </>
-                          ) : (
-                            reportFilters.dateRange.from.toLocaleDateString()
-                          )
-                        ) : (
-                          <span>Pick a date range</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-4" align="start">
-                      <div className="bg-background rounded-md p-3">
-                        <Calendar
-                          mode="range"
-                          selected={reportFilters.dateRange}
-                          onSelect={(range) => {
-                            if (range) {
-                              setReportFilters({...reportFilters, dateRange: range});
-                            }
-                          }}
-                          initialFocus
-                          className="border-none"
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 items-start">
+            <div className="w-full sm:w-2/3 space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Report List</CardTitle>
+                    <div className="flex items-center space-x-2">
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-36">
+                          <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="unresolved">Unresolved</SelectItem>
+                          <SelectItem value="in-progress">In Progress</SelectItem>
+                          <SelectItem value="resolved">Resolved</SelectItem>
+                          <SelectItem value="escalated">Escalated</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search reports..."
+                          className="pl-8 w-60"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
                         />
                       </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                
-                <div>
-                  <Label>Noise Types</Label>
-                  <Select onValueChange={(value) => {
-                    if (value === "all") {
-                      setReportFilters({...reportFilters, noiseTypes: []})
-                    } else if (reportFilters.noiseTypes.includes(value)) {
-                      setReportFilters({...reportFilters, noiseTypes: reportFilters.noiseTypes.filter(t => t !== value)})
-                    } else {
-                      setReportFilters({...reportFilters, noiseTypes: [...reportFilters.noiseTypes, value]})
-                    }
-                  }}>
-                    <SelectTrigger className="w-full mt-1">
-                      <SelectValue placeholder={`${reportFilters.noiseTypes.length === 0 ? 'All' : reportFilters.noiseTypes.length} noise types selected`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="Traffic">Traffic</SelectItem>
-                      <SelectItem value="Construction">Construction</SelectItem>
-                      <SelectItem value="Industrial">Industrial</SelectItem>
-                      <SelectItem value="Music">Music & Events</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label>Decibel Range ({reportFilters.minDecibel} - {reportFilters.maxDecibel} dB)</Label>
-                  <div className="pt-4 px-1">
-                    <Slider 
-                      value={[reportFilters.minDecibel, reportFilters.maxDecibel]} 
-                      max={120} 
-                      step={5}
-                      onValueChange={(value) => {
-                        if (Array.isArray(value) && value.length === 2) {
-                          setReportFilters({
-                            ...reportFilters, 
-                            minDecibel: value[0], 
-                            maxDecibel: value[1]
-                          })
-                        }
-                      }}
-                    />
+                    </div>
                   </div>
-                </div>
-                
-                <div>
-                  <Label>Status</Label>
-                  <Select onValueChange={(value) => {
-                    if (value === "all") {
-                      setReportFilters({...reportFilters, statuses: []})
-                    } else if (reportFilters.statuses.includes(value)) {
-                      setReportFilters({...reportFilters, statuses: reportFilters.statuses.filter(s => s !== value)})
-                    } else {
-                      setReportFilters({...reportFilters, statuses: [...reportFilters.statuses, value]})
-                    }
-                  }}>
-                    <SelectTrigger className="w-full mt-1">
-                      <SelectValue placeholder={`${reportFilters.statuses.length === 0 ? 'All' : reportFilters.statuses.length} statuses selected`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="unresolved">Unresolved</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                      <SelectItem value="escalated">Escalated</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Checkbox 
-                    id="includeCharts" 
-                    checked={reportFilters.includeCharts} 
-                    onCheckedChange={(checked) => 
-                      setReportFilters({...reportFilters, includeCharts: !!checked})
-                    }
-                  />
-                  <label htmlFor="includeCharts">Include Charts & Graphs</label>
-                </div>
-                
-                <div className="pt-4 flex justify-between">
-                  <Button 
-                    variant="outline" 
-                    onClick={resetReportFilters}
-                  >
-                    Reset Filters
-                  </Button>
-                  <Button 
-                    onClick={generateReport}
-                    disabled={isGeneratingReport}
-                  >
-                    {isGeneratingReport ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Generate Report
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Generated Report Preview */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FileText className="mr-2 h-5 w-5 text-primary" />
-                  Report Preview
-                </CardTitle>
-                <CardDescription>
-                  Generated report based on your filter criteria
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {isGeneratingReport ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-muted-foreground">Generating your report...</p>
-                  </div>
-                ) : reportData.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground mb-4">No report generated yet. Select your filters and click "Generate Report".</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-semibold">Noise Pollution Report</h3>
-                        <Badge variant="outline">
-                          {reportType === "summary" ? "Summary" : 
-                           reportType === "detailed" ? "Detailed" : "Custom"}
-                        </Badge>
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground">
-                        Generated on {new Date().toLocaleString()} • {reportData.length} reports included
-                      </div>
-                      
-                      <Separator />
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium">Date Range</p>
-                          <p className="text-sm text-muted-foreground">
-                            {reportFilters.dateRange?.from 
-                              ? `${reportFilters.dateRange.from.toLocaleDateString()} - ${reportFilters.dateRange.to?.toLocaleDateString() || 'Present'}`
-                              : 'All dates'
-                            }
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Noise Types</p>
-                          <p className="text-sm text-muted-foreground">
-                            {reportFilters.noiseTypes.length > 0 
-                              ? reportFilters.noiseTypes.join(', ')
-                              : 'All types'
-                            }
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Decibel Range</p>
-                          <p className="text-sm text-muted-foreground">
-                            {reportFilters.minDecibel}dB - {reportFilters.maxDecibel}dB
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Statuses</p>
-                          <p className="text-sm text-muted-foreground">
-                            {reportFilters.statuses.length > 0 
-                              ? reportFilters.statuses.join(', ')
-                              : 'All statuses'
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-semibold">Executive Summary</h3>
-                      </div>
-                      
-                      {/* Calculate report stats */}
-                      {(() => {
-                        const reportStats = calculateReportStats();
-                        return reportStats && (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <Card>
-                                <CardContent className="p-4 text-center">
-                                  <p className="text-3xl font-bold">{reportStats.total}</p>
-                                  <p className="text-sm text-muted-foreground">Total Reports</p>
-                                </CardContent>
-                              </Card>
-                              <Card>
-                                <CardContent className="p-4 text-center">
-                                  <p className="text-3xl font-bold">{reportStats.avgDecibel}dB</p>
-                                  <p className="text-sm text-muted-foreground">Average Level</p>
-                                </CardContent>
-                              </Card>
-                              <Card>
-                                <CardContent className="p-4 text-center">
-                                  <p className="text-3xl font-bold">{reportStats.dangerousCount}</p>
-                                  <p className="text-sm text-muted-foreground">Dangerous Noise</p>
-                                </CardContent>
-                              </Card>
-                              <Card>
-                                <CardContent className="p-4 text-center">
-                                  <p className="text-3xl font-bold text-nowrap truncate">{reportStats.mostCommonType}</p>
-                                  <p className="text-sm text-muted-foreground">Common Type</p>
-                                </CardContent>
-                              </Card>
-                        </div>
-                        );
-                      })()}
-                      
-                      {reportFilters.includeCharts && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                          <Card>
-                            <CardHeader className="p-4 pb-0">
-                              <CardTitle className="text-sm">Noise Type Distribution</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-4 pt-0">
-                              <div className="h-[200px]">
-                                <NoisePieChart data={reportData} />
-                              </div>
-                            </CardContent>
-                          </Card>
-                          <Card>
-                            <CardHeader className="p-4 pb-0">
-                              <CardTitle className="text-sm">Noise Level Distribution</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-4 pt-0">
-                              <div className="h-[200px]">
-                                <NoiseBarChart data={reportData} />
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-semibold">Reports By Department</h3>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setShowForwardDialog(true)}
-                        >
-                          <Send className="mr-2 h-4 w-4" />
-                          Forward to Departments
-                        </Button>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        {Object.entries(departmentReports).map(([department, reports]) => (
-                          <div key={department}>
-                            <div className="flex justify-between items-center mb-2">
-                              <h4 className="font-medium">{department}</h4>
-                              <Badge variant="outline">{reports.length} reports</Badge>
-                            </div>
-                            {reports.length > 0 ? (
-                              <div className="border rounded-md overflow-hidden">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>ID</TableHead>
-                                      <TableHead>Date</TableHead>
-                                      <TableHead>Type</TableHead>
-                                      <TableHead>dB Level</TableHead>
-                                      <TableHead>Status</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {reports.slice(0, 3).map((report) => (
-                                      <TableRow key={report.id}>
-                                        <TableCell className="font-medium">{report.id.substring(0, 8)}...</TableCell>
-                                        <TableCell>{new Date(report.created_at).toLocaleDateString()}</TableCell>
-                                        <TableCell>{report.noise_type}</TableCell>
-                                        <TableCell>
-                                          <Badge variant={
-                                            report.decibel_level >= 80 ? "destructive" :
-                                            report.decibel_level >= 65 ? "default" :
-                                            "outline"
-                                          }>
-                                            {report.decibel_level} dB
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell>{report.status || "unresolved"}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                    {reports.length > 3 && (
-                                      <TableRow>
-                                        <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                                          + {reports.length - 3} more reports
-                                        </TableCell>
-                                      </TableRow>
-                                    )}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            ) : (
-                              <div className="text-center p-4 border rounded-md bg-muted/20">
-                                <p className="text-sm text-muted-foreground">No reports for this department</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-end gap-2 pt-4">
-                      <Button 
-                        variant="outline"
-                        onClick={() => exportData('pdf')}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Export as PDF
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        onClick={() => exportData('csv')}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Export as CSV
-                      </Button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button>
-                            <Send className="mr-2 h-4 w-4" />
-                            Submit Report
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Submit Report to Department</DialogTitle>
-                            <DialogDescription>
-                              Select which department to forward this report to.
-                            </DialogDescription>
-                          </DialogHeader>
-                          
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="department">Select Department</Label>
-                              <Select>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a department" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="traffic">Traffic Department (RTO)</SelectItem>
-                                  <SelectItem value="construction">Construction Department</SelectItem>
-                                  <SelectItem value="industrial">Industrial Department</SelectItem>
-                                  <SelectItem value="police">Music & Events (Police)</SelectItem>
-                                  <SelectItem value="environment">Environment Department</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <Label htmlFor="notes">Additional Notes</Label>
-                              <Textarea 
-                                id="notes" 
-                                placeholder="Include any additional information for the department..."
-                                rows={4}
-                              />
-                            </div>
-                          </div>
-                          
-                          <DialogFooter>
-                            <Button variant="outline" className="mr-2">Cancel</Button>
-                            <Button onClick={() => {
-                              toast({
-                                title: "Report Submitted",
-                                description: "The report has been forwarded to the selected department."
-                              });
-                            }}>
-                              <Send className="mr-2 h-4 w-4" />
-                              Send Report
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* Noise Reports Table */}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <CardTitle>Noise Reports Management</CardTitle>
-                  <CardDescription>
-                    View, filter and manage all submitted noise reports.
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">                  
-                  <Select 
-                    defaultValue="all" 
-                    onValueChange={(value) => setStatusFilter(value)}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Reports</SelectItem>
-                      <SelectItem value="unresolved">Unresolved</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                      <SelectItem value="escalated">Escalated</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Search reports..."
-                    className="w-[200px]"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[80px]">ID</TableHead>
-                      <TableHead className="w-[180px]">Date/Time</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Noise Type</TableHead>
-                      <TableHead className="text-center">dB Level</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredReports.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center">
-                          {loading ? (
-                            <div className="flex justify-center items-center">
-                              <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                              Loading reports...
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-center">
-                              <p className="text-muted-foreground">No reports found</p>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {statusFilter !== "all" ? "Try changing the status filter" : 
-                                 searchTerm ? "Try a different search term" : "No data available"}
-                              </p>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedReports.map((report) => (
-                        <TableRow key={report.id}>
-                          <TableCell className="font-medium">{report.id.substring(0, 8)}...</TableCell>
-                          <TableCell>
-                            {new Date(report.created_at).toLocaleDateString()}{" "}
-                            {new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </TableCell>
-                          <TableCell>
-                            {report.address || `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`}
-                          </TableCell>
-                          <TableCell>{report.noise_type}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge
-                              variant={
-                                report.decibel_level >= 80 ? "destructive" :
-                                report.decibel_level >= 65 ? "default" :
-                                "outline"
-                              }
-                            >
-                              {report.decibel_level} dB
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                report.status === "resolved" ? "outline" :
-                                report.status === "escalated" ? "destructive" :
-                                report.status === "in-progress" ? "default" :
-                                "secondary"
-                              }
-                              className={
-                                report.status === "resolved" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
-                                report.status === "in-progress" ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" :
-                                report.status === "escalated" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
-                                "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
-                              }
-                            >
-                              {report.status || "unresolved"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <DotsHorizontalIcon className="h-4 w-4" />
-                                  <span className="sr-only">Open menu</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleViewReport(report)}>
-                                  View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => handleStatusChange(report.id, "resolved")}>
-                                  Mark as Resolved
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <DropdownMenuTrigger className="w-full text-left">
-                                    Change Status
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead>Area</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Level</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loading ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="h-24 text-center">
+                              <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                            </TableCell>
+                          </TableRow>
+                        ) : paginatedReports.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="h-24 text-center">
+                              No reports found.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          paginatedReports.map((report) => (
+                            <TableRow key={report.id} className="group">
+                              <TableCell className="font-mono text-xs">
+                                {report.id.substring(0, 8)}...
+                              </TableCell>
+                              <TableCell className="max-w-[150px] truncate">
+                                {report.address}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{report.noise_type}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`h-2.5 w-2.5 rounded-full ${
+                                      report.decibel_level >= 80
+                                        ? "bg-red-500"
+                                        : report.decibel_level >= 65
+                                        ? "bg-orange-500"
+                                        : report.decibel_level >= 50
+                                        ? "bg-yellow-500"
+                                        : "bg-green-500"
+                                    }`}
+                                  />
+                                  <span>{report.decibel_level} dB</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    report.status === "resolved"
+                                      ? "default"
+                                      : report.status === "in-progress"
+                                      ? "secondary"
+                                      : report.status === "escalated"
+                                      ? "destructive"
+                                      : "outline"
+                                  }
+                                >
+                                  {report.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {new Date(report.created_at).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <DotsHorizontalIcon className="h-4 w-4" />
+                                    </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent>
-                                    <DropdownMenuItem onClick={() => handleStatusChange(report.id, "unresolved")}>
-                                      Unresolved
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleViewReport(report)}>
+                                      <EyeIcon className="mr-2 h-4 w-4" />
+                                      View Details
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleStatusChange(report.id, "in-progress")}>
-                                      In Progress
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleStatusChange(report.id, "in-progress")}
+                                    >
+                                      <Activity className="mr-2 h-4 w-4" />
+                                      Mark In Progress
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleStatusChange(report.id, "resolved")}>
-                                      Resolved
+                                    <DropdownMenuItem
+                                      onClick={() => handleStatusChange(report.id, "resolved")}
+                                    >
+                                      <ActivityIcon className="mr-2 h-4 w-4" />
+                                      Mark Resolved
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleStatusChange(report.id, "escalated")}>
-                                      Escalated
+                                    <DropdownMenuItem
+                                      onClick={() => handleStatusChange(report.id, "escalated")}
+                                    >
+                                      <AlertTriangleIcon className="mr-2 h-4 w-4" />
+                                      Escalate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => handleFlagToggle(report.id)}>
+                                      <Flag className="mr-2 h-4 w-4" />
+                                      {report.flagged ? "Remove Flag" : "Flag Report"}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => {
+                                      setSelectedReport(report);
+                                      setShowForwardDialog(true);
+                                    }}>
+                                      <Share2 className="mr-2 h-4 w-4" />
+                                      Forward to Department
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem 
-                                  className={report.flagged ? "text-amber-600" : "text-red-600"}
-                                  onClick={() => handleFlagToggle(report.id)}
-                                >
-                                  {report.flagged ? "Remove Flag" : "Flag as Important"}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="flex items-center justify-between space-x-2 py-4">
-                <div className="text-sm text-muted-foreground">
-                  Showing <span className="font-medium">{paginatedReports.length}</span> of{" "}
-                  <span className="font-medium">{filteredReports.length}</span> reports
-                  {filteredReports.length < noiseReports.length && 
-                    <> (filtered from {noiseReports.length} total reports)</>
-                  }
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePreviousPage}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground px-2">
-                    Page {currentPage} of {Math.max(1, Math.ceil(filteredReports.length / reportsPerPage))}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleNextPage}
-                    disabled={currentPage >= Math.ceil(filteredReports.length / reportsPerPage)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Settings className="mr-2 h-5 w-5 text-primary" />
-                General Settings
-              </CardTitle>
-              <CardDescription>
-                Configure the admin portal and system settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <h3 className="text-lg font-medium">Display Settings</h3>
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="reportsPerPage">Reports per page</Label>
-                    <div className="flex items-center gap-2">
-                      <Select value={reportsPerPage.toString()} onValueChange={(value) => setReportsPerPage(parseInt(value))}>
-                        <SelectTrigger className="w-[80px]">
-                          <SelectValue placeholder={reportsPerPage.toString()} />
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {Math.min(1 + (currentPage - 1) * reportsPerPage, filteredReports.length)} to{" "}
+                      {Math.min(currentPage * reportsPerPage, filteredReports.length)} of{" "}
+                      {filteredReports.length} reports
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePreviousPage}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          // Show pages around current page
+                          let pageToShow;
+                          if (totalPages <= 5) {
+                            pageToShow = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageToShow = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageToShow = totalPages - 4 + i;
+                          } else {
+                            pageToShow = currentPage - 2 + i;
+                          }
+                          
+                          return (
+                            <Button
+                              key={i}
+                              variant={currentPage === pageToShow ? "default" : "outline"}
+                              size="sm"
+                              className="w-8 h-8 mx-0.5"
+                              onClick={() => setCurrentPage(pageToShow)}
+                            >
+                              {pageToShow}
+                            </Button>
+                          );
+                        })}
+                        {totalPages > 5 && currentPage < totalPages - 2 && (
+                          <>
+                            {currentPage < totalPages - 3 && (
+                              <span className="mx-1 text-muted-foreground">...</span>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-8 h-8 mx-0.5"
+                              onClick={() => setCurrentPage(totalPages)}
+                            >
+                              {totalPages}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNextPage}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                      <Select
+                        value={reportsPerPage.toString()}
+                        onValueChange={(value) => {
+                          setReportsPerPage(parseInt(value));
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <SelectTrigger className="w-20">
+                          <SelectValue placeholder="Show" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="5">5</SelectItem>
@@ -2170,106 +1990,910 @@ const AdminPortal: React.FC = () => {
                       </Select>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="w-full sm:w-1/3 space-y-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Report Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {stats && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="border rounded-md p-3 flex flex-col">
+                            <span className="text-sm text-muted-foreground">Total Reports</span>
+                            <span className="text-2xl font-semibold">{stats.total}</span>
+                          </div>
+                          <div className="border rounded-md p-3 flex flex-col">
+                            <span className="text-sm text-muted-foreground">Avg. Decibel</span>
+                            <span className="text-2xl font-semibold">{stats.avgDecibel} dB</span>
+                          </div>
+                          <div className="border rounded-md p-3 flex flex-col">
+                            <span className="text-sm text-muted-foreground">Flagged</span>
+                            <span className="text-2xl font-semibold">{stats.flaggedCount}</span>
+                          </div>
+                          <div className="border rounded-md p-3 flex flex-col">
+                            <span className="text-sm text-muted-foreground">Dangerous Levels</span>
+                            <span className="text-2xl font-semibold text-red-500">{stats.dangerousCount}</span>
+                          </div>
+                        </div>
+
+                        <div className="pt-4">
+                          <h3 className="text-sm font-medium mb-3">Noise Level Distribution</h3>
+                          <div className="space-y-3">
+                            {noiseCategories.map((category, index) => (
+                              <div key={index} className="space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span>{category.category}</span>
+                                  <span>{category.percentage}%</span>
+                                </div>
+                                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full ${category.color}`}
+                                    style={{ width: `${category.percentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-4">
+                          <h3 className="text-sm font-medium mb-2">Common Noise Types</h3>
+                          <div className="h-[180px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={Object.entries(stats.noiseTypeCounts).map(([type, count]) => ({
+                                    name: type,
+                                    value: count
+                                  }))}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={45}
+                                  outerRadius={70}
+                                  fill="#8884d8"
+                                  paddingAngle={2}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                  labelLine={false}
+                                >
+                                  {Object.entries(stats.noiseTypeCounts).map((_, index) => {
+                                    const COLORS = ['#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
+                                    return <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />;
+                                  })}
+                                </Pie>
+                                <Tooltip 
+                                  formatter={(value, name) => [value, name]}
+                                  contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Button variant="outline" className="w-full justify-start" onClick={() => exportData('csv')}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Export All Reports
+                    </Button>
+                    <Button variant="outline" className="w-full justify-start" onClick={() => setShowReportGenerator(true)}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Generate Report
+                    </Button>
+                    <Button variant="outline" className="w-full justify-start" onClick={() => setShowAiSearch(true)}>
+                      <Brain className="mr-2 h-4 w-4" />
+                      AI-Powered Search
+                    </Button>
+                    <Button variant="outline" className="w-full justify-start" onClick={() => {
+                      const unresolved = noiseReports.filter(report => report.status !== "resolved");
+                      setFilteredReports(unresolved);
+                      setStatusFilter("all");
+                      setSearchTerm("");
+                      toast({
+                        title: "Filter Applied",
+                        description: `Showing ${unresolved.length} unresolved reports`
+                      });
+                    }}>
+                      <AlertTriangleIcon className="mr-2 h-4 w-4" />
+                      Show Unresolved
+                    </Button>
+                    <Button variant="outline" className="w-full justify-start" onClick={() => {
+                      const dangerous = noiseReports.filter(report => report.decibel_level >= 80);
+                      setFilteredReports(dangerous);
+                      setStatusFilter("all");
+                      setSearchTerm("");
+                      toast({
+                        title: "Filter Applied",
+                        description: `Showing ${dangerous.length} dangerous noise level reports`
+                      });
+                    }}>
+                      <Activity className="mr-2 h-4 w-4" />
+                      Show Dangerous Levels
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Report View Dialog */}
+          <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              {selectedReport && (
+                <>
+                  <DialogHeader>
+                    <div className="flex justify-between items-center">
+                      <DialogTitle>Report Details</DialogTitle>
+                      <Badge
+                        variant={
+                          selectedReport.status === "resolved"
+                            ? "default"
+                            : selectedReport.status === "in-progress"
+                            ? "secondary"
+                            : selectedReport.status === "escalated"
+                            ? "destructive"
+                            : "outline"
+                        }
+                      >
+                        {selectedReport.status}
+                      </Badge>
+                    </div>
+                    <DialogDescription>
+                      Submitted on {new Date(selectedReport.created_at).toLocaleString()}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-sm font-medium">Noise Information</h3>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div className="border rounded-md p-3">
+                            <span className="text-sm text-muted-foreground">Noise Type</span>
+                            <div className="font-medium mt-1">{selectedReport.noise_type}</div>
+                          </div>
+                          <div className="border rounded-md p-3">
+                            <span className="text-sm text-muted-foreground">Decibel Level</span>
+                            <div className="font-medium mt-1 flex items-center">
+                              <div
+                                className={`h-2.5 w-2.5 rounded-full mr-2 ${
+                                  selectedReport.decibel_level >= 80
+                                    ? "bg-red-500"
+                                    : selectedReport.decibel_level >= 65
+                                    ? "bg-orange-500"
+                                    : selectedReport.decibel_level >= 50
+                                    ? "bg-yellow-500"
+                                    : "bg-green-500"
+                                }`}
+                              />
+                              {selectedReport.decibel_level} dB
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-sm font-medium">Location Details</h3>
+                        <div className="grid grid-cols-1 gap-4 mt-2">
+                          <div className="border rounded-md p-3">
+                            <span className="text-sm text-muted-foreground">Address</span>
+                            <div className="font-medium mt-1">{selectedReport.address}</div>
+                          </div>
+                          <div className="border rounded-md p-3">
+                            <span className="text-sm text-muted-foreground">Coordinates</span>
+                            <div className="font-medium mt-1">
+                              {selectedReport.latitude.toFixed(6)}, {selectedReport.longitude.toFixed(6)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-sm font-medium">Additional Information</h3>
+                        <div className="border rounded-md p-3 mt-2">
+                          <span className="text-sm text-muted-foreground">Notes</span>
+                          <div className="font-medium mt-1">
+                            {selectedReport.notes || "No additional notes provided."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="border rounded-md overflow-hidden h-48">
+                        <NoiseLevelsMap data={[selectedReport]} />
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Actions</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Button variant="outline" size="sm" onClick={() => handleStatusChange(selectedReport.id, "in-progress")}>
+                            <Activity className="mr-2 h-4 w-4" />
+                            Mark In Progress
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleStatusChange(selectedReport.id, "resolved")}>
+                            <ActivityIcon className="mr-2 h-4 w-4" />
+                            Mark Resolved
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleStatusChange(selectedReport.id, "escalated")}>
+                            <AlertTriangleIcon className="mr-2 h-4 w-4" />
+                            Escalate
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleFlagToggle(selectedReport.id)}>
+                            <Flag className="mr-2 h-4 w-4" />
+                            {selectedReport.flagged ? "Remove Flag" : "Flag Report"}
+                          </Button>
+                          <Button variant="outline" size="sm" className="col-span-2" onClick={() => {
+                            setShowReportModal(false);
+                            setShowForwardDialog(true);
+                          }}>
+                            <Share2 className="mr-2 h-4 w-4" />
+                            Forward to Department
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Similar Reports</h3>
+                        <ScrollArea className="h-48 border rounded-md p-2">
+                          {noiseReports.filter(r => 
+                            r.id !== selectedReport.id && 
+                            (r.noise_type === selectedReport.noise_type || 
+                             Math.abs(r.latitude - selectedReport.latitude) < 0.01)
+                          ).slice(0, 5).map(report => (
+                            <div key={report.id} className="p-2 hover:bg-muted rounded-md cursor-pointer mb-2" onClick={() => {
+                              setSelectedReport(report);
+                            }}>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-medium text-sm">{report.noise_type}</div>
+                                  <div className="text-xs text-muted-foreground truncate max-w-[180px]">{report.address}</div>
+                                </div>
+                                <Badge variant="outline" className="text-xs">{report.decibel_level} dB</Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </ScrollArea>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* AI Search Dialog */}
+          <Dialog open={showAiSearch} onOpenChange={setShowAiSearch}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center">
+                  <Brain className="mr-2 h-5 w-5 text-primary" />
+                  AI-Powered Search
+                </DialogTitle>
+                <DialogDescription>
+                  Ask natural language questions about noise reports
+                </DialogDescription>
+              </DialogHeader>
+              
+              <form onSubmit={handleAiSearchSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ai-query">Your Query</Label>
+                  <Input
+                    id="ai-query"
+                    placeholder="e.g., 'Find loud noise reports in Koregaon Park after 10pm'"
+                    value={aiQuery}
+                    onChange={(e) => setAiQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div className="text-sm text-muted-foreground">
+                  <p>Example queries:</p>
+                  <ul className="list-disc pl-4 space-y-1 mt-1">
+                    <li>High noise levels in residential areas</li>
+                    <li>Reports filed last weekend</li>
+                    <li>Construction noise near schools</li>
+                    <li>Nighttime noise violations</li>
+                  </ul>
+                </div>
+                
+                <DialogFooter>
+                  <Button type="submit" disabled={isAiSearching}>
+                    {isAiSearching ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Searching...
+                      </>
+                    ) : (
+                      <>
+                        <SearchIcon className="mr-2 h-4 w-4" />
+                        Search
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+        
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Notification Settings Card */}
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Notification Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure how you receive alerts and notifications
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="emailNotifications">Email Notifications</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Receive email alerts for high-priority noise events
+                      </p>
+                    </div>
+                    <Switch 
+                      id="emailNotifications" 
+                      checked={notificationSettings.emailNotifications}
+                      onCheckedChange={(checked) => 
+                        setNotificationSettings({...notificationSettings, emailNotifications: checked})
+                      }
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="reportThreshold">Alert Threshold (dB)</Label>
+                      <span className="text-sm font-medium">
+                        {notificationSettings.reportThreshold} dB
+                      </span>
+                    </div>
+                    <Slider
+                      id="reportThreshold"
+                      min={60}
+                      max={100}
+                      step={5}
+                      value={[notificationSettings.reportThreshold]}
+                      onValueChange={(value) => 
+                        setNotificationSettings({...notificationSettings, reportThreshold: value[0]})
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Notify when noise levels exceed this threshold
+                    </p>
+                  </div>
                   
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="defaultExportFormat">Default export format</Label>
+                    <div className="space-y-0.5">
+                      <Label htmlFor="dailyDigest">Daily Summary</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Receive a daily digest of all noise reports
+                      </p>
+                    </div>
+                    <Switch 
+                      id="dailyDigest" 
+                      checked={notificationSettings.dailyDigest}
+                      onCheckedChange={(checked) => 
+                        setNotificationSettings({...notificationSettings, dailyDigest: checked})
+                      }
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="alertSound">Alert Sounds</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Play sound when new reports arrive
+                      </p>
+                    </div>
+                    <Switch 
+                      id="alertSound" 
+                      checked={notificationSettings.alertSound}
+                      onCheckedChange={(checked) => 
+                        setNotificationSettings({...notificationSettings, alertSound: checked})
+                      }
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* System Settings Card */}
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  System Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure core system behavior and defaults
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="dataRetention">Data Retention (days)</Label>
                     <div className="flex items-center gap-2">
-                      <Select value={exportFormat} onValueChange={(value) => setExportFormat(value as "csv" | "json" | "pdf")}>
-                        <SelectTrigger className="w-[80px]">
-                          <SelectValue placeholder={exportFormat.toUpperCase()} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="csv">CSV</SelectItem>
-                          <SelectItem value="json">JSON</SelectItem>
-                          <SelectItem value="pdf">PDF</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        id="dataRetention"
+                        type="number"
+                        min={30}
+                        max={365}
+                        value={systemSettings.dataRetentionDays}
+                        onChange={(e) => 
+                          setSystemSettings({
+                            ...systemSettings, 
+                            dataRetentionDays: parseInt(e.target.value) || 90
+                          })
+                        }
+                      />
+                      <span className="text-sm text-muted-foreground">days</span>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      How long to keep noise report data
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="autoArchive">Auto-Archive</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically archive resolved reports
+                      </p>
+                    </div>
+                    <Switch 
+                      id="autoArchive" 
+                      checked={systemSettings.autoArchive}
+                      onCheckedChange={(checked) => 
+                        setSystemSettings({...systemSettings, autoArchive: checked})
+                      }
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="mapDefaultView">Default Map View</Label>
+                    <Select 
+                      value={systemSettings.mapDefaultView}
+                      onValueChange={(value) => 
+                        setSystemSettings({...systemSettings, mapDefaultView: value})
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select map view" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="heatmap">Heat Map</SelectItem>
+                        <SelectItem value="markers">Markers</SelectItem>
+                        <SelectItem value="clusters">Clusters</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="defaultZoom">Default Zoom Level</Label>
+                      <span className="text-sm font-medium">
+                        {systemSettings.defaultZoomLevel}
+                      </span>
+                    </div>
+                    <Slider
+                      id="defaultZoom"
+                      min={8}
+                      max={18}
+                      step={1}
+                      value={[systemSettings.defaultZoomLevel]}
+                      onValueChange={(value) => 
+                        setSystemSettings({...systemSettings, defaultZoomLevel: value[0]})
+                      }
+                    />
                   </div>
                 </div>
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Department Settings</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Configure department email addresses for forwarding noise reports
-                </p>
-                
-                <div className="space-y-3 border rounded-md p-4">
-                  {/* Traffic Department */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
-                    <Label htmlFor="trafficEmail" className="md:col-span-1">Traffic Department (RTO)</Label>
-                    <div className="md:col-span-2">
-                      <Input 
-                        id="trafficEmail" 
-                        defaultValue="rto.pune@maharashtra.gov.in" 
-                        className="w-full"
-                      />
+              </CardContent>
+            </Card>
+            
+            {/* AI Settings Card */}
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BrainCircuit className="h-5 w-5" />
+                  AI & Analytics Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure AI-powered insights and analytics
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enableAi">Enable AI Insights</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Use AI to analyze noise patterns and trends
+                      </p>
                     </div>
+                    <Switch 
+                      id="enableAi" 
+                      checked={aiSettings.enableAiInsights}
+                      onCheckedChange={(checked) => 
+                        setAiSettings({...aiSettings, enableAiInsights: checked})
+                      }
+                    />
                   </div>
                   
-                  {/* Construction Department */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
-                    <Label htmlFor="constructionEmail" className="md:col-span-1">Construction Department</Label>
-                    <div className="md:col-span-2">
-                      <Input 
-                        id="constructionEmail" 
-                        defaultValue="construction@punecorp.gov.in" 
-                        className="w-full"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="insightFrequency">Insight Frequency</Label>
+                    <Select 
+                      value={aiSettings.insightFrequency}
+                      onValueChange={(value) => 
+                        setAiSettings({...aiSettings, insightFrequency: value})
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      How often to generate new AI insights
+                    </p>
                   </div>
                   
-                  {/* Industrial Department */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
-                    <Label htmlFor="industrialEmail" className="md:col-span-1">Industrial Department</Label>
-                    <div className="md:col-span-2">
-                      <Input 
-                        id="industrialEmail" 
-                        defaultValue="industrial@punecorp.gov.in" 
-                        className="w-full"
-                      />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="saveQueries">Save Search Queries</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Save AI search history for better results
+                      </p>
                     </div>
+                    <Switch 
+                      id="saveQueries" 
+                      checked={aiSettings.saveSearchQueries}
+                      onCheckedChange={(checked) => 
+                        setAiSettings({...aiSettings, saveSearchQueries: checked})
+                      }
+                    />
                   </div>
                   
-                  {/* Music & Events Department */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
-                    <Label htmlFor="musicEmail" className="md:col-span-1">Music & Events (Police)</Label>
-                    <div className="md:col-span-2">
-                      <Input 
-                        id="musicEmail" 
-                        defaultValue="noise.complaints@punepolice.gov.in" 
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Default Department */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
-                    <Label htmlFor="defaultEmail" className="md:col-span-1">Default Department</Label>
-                    <div className="md:col-span-2">
-                      <Input 
-                        id="defaultEmail" 
-                        defaultValue="noise@punecorp.gov.in" 
-                        className="w-full"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="aiModel">Preferred AI Model</Label>
+                    <Select 
+                      value={aiSettings.preferredModel}
+                      onValueChange={(value) => 
+                        setAiSettings({...aiSettings, preferredModel: value})
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select AI model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gpt-4">GPT-4</SelectItem>
+                        <SelectItem value="claude">Claude</SelectItem>
+                        <SelectItem value="gemini">Gemini</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                
-                <div className="flex justify-end">
-                  <Button variant="outline" className="mr-2">
-                    Reset to Defaults
-                  </Button>
-                  <Button>
+              </CardContent>
+            </Card>
+            
+            {/* Export & Reports Card */}
+            <Card className="col-span-1 lg:col-span-3">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Export & Report Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure default export formats and report generation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultFormat">Default Export Format</Label>
+                    <Select 
+                      value={exportSettings.defaultFormat}
+                      onValueChange={(value) => 
+                        setExportSettings({...exportSettings, defaultFormat: value})
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select format" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="csv">CSV</SelectItem>
+                        <SelectItem value="pdf">PDF</SelectItem>
+                        <SelectItem value="json">JSON</SelectItem>
+                        <SelectItem value="excel">Excel</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Label htmlFor="includeCharts">Include Charts</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Include visualizations in reports
+                      </p>
+                    </div>
+                    <Switch 
+                      id="includeCharts" 
+                      checked={exportSettings.includeCharts}
+                      onCheckedChange={(checked) => 
+                        setExportSettings({...exportSettings, includeCharts: checked})
+                      }
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Label htmlFor="compressFiles">Compress Files</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Compress exported reports as ZIP
+                      </p>
+                    </div>
+                    <Switch 
+                      id="compressFiles" 
+                      checked={exportSettings.compressFiles}
+                      onCheckedChange={(checked) => 
+                        setExportSettings({...exportSettings, compressFiles: checked})
+                      }
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultRecipients">Default Recipients</Label>
+                    <Input
+                      id="defaultRecipients"
+                      placeholder="email1@example.com, email2@example.com"
+                      value={exportSettings.defaultRecipients}
+                      onChange={(e) => 
+                        setExportSettings({...exportSettings, defaultRecipients: e.target.value})
+                      }
+                    />
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between border-t pt-6">
+                <Button variant="outline" onClick={() => {
+                  // Reset all settings to default
+                  setNotificationSettings({
+                    emailNotifications: true,
+                    reportThreshold: 80,
+                    dailyDigest: false,
+                    alertSound: true,
+                  });
+                  setSystemSettings({
+                    dataRetentionDays: 90,
+                    autoArchive: true,
+                    mapDefaultView: "heatmap",
+                    defaultZoomLevel: 12,
+                  });
+                  setAiSettings({
+                    enableAiInsights: true,
+                    insightFrequency: "weekly",
+                    saveSearchQueries: true,
+                    preferredModel: "gpt-4",
+                  });
+                  setExportSettings({
+                    defaultFormat: "csv",
+                    includeCharts: true,
+                    compressFiles: false,
+                    defaultRecipients: "",
+                  });
+                }}>
+                  Reset to Default
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline">Cancel</Button>
+                  <Button onClick={saveSettings}>
                     Save Settings
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardFooter>
+            </Card>
+            
+            {/* Backup & Restore Card */}
+            <Card className="col-span-1 lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Save className="h-5 w-5" />
+                  Backup & Restore
+                </CardTitle>
+                <CardDescription>
+                  Backup your data and settings or restore from backup
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Create Backup</Label>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" className="w-full" onClick={() => {
+                      // Create a backup of all settings and data
+                      const backup = {
+                        notificationSettings,
+                        systemSettings,
+                        aiSettings,
+                        exportSettings,
+                        timestamp: new Date().toISOString(),
+                        version: "1.0.0"
+                      };
+                      
+                      // Convert to JSON and create a download link
+                      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
+                      const downloadAnchorNode = document.createElement('a');
+                      downloadAnchorNode.setAttribute("href", dataStr);
+                      downloadAnchorNode.setAttribute("download", `noisesense-backup-${new Date().toISOString().slice(0, 10)}.json`);
+                      document.body.appendChild(downloadAnchorNode);
+                      downloadAnchorNode.click();
+                      downloadAnchorNode.remove();
+                      
+                      toast({
+                        title: "Backup created",
+                        description: "Your settings have been exported to a JSON file.",
+                        duration: 3000,
+                      });
+                    }}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Settings
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Creates a JSON file with all your settings
+                  </p>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-2">
+                  <Label>Restore from Backup</Label>
+                  <div className="flex flex-col gap-2">
+                    <Input
+                      id="backupFile"
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            try {
+                              const backup = JSON.parse(event.target?.result as string);
+                              
+                              // Validate backup format
+                              if (backup.notificationSettings && backup.systemSettings && 
+                                  backup.aiSettings && backup.exportSettings) {
+                                // Apply settings from backup
+                                setNotificationSettings(backup.notificationSettings);
+                                setSystemSettings(backup.systemSettings);
+                                setAiSettings(backup.aiSettings);
+                                setExportSettings(backup.exportSettings);
+                                
+                                toast({
+                                  title: "Settings restored",
+                                  description: `Backup from ${new Date(backup.timestamp).toLocaleDateString()} restored successfully.`,
+                                  duration: 3000,
+                                });
+                              } else {
+                                toast({
+                                  title: "Invalid backup file",
+                                  description: "The file doesn't contain valid settings data.",
+                                  variant: "destructive",
+                                  duration: 5000,
+                                });
+                              }
+                            } catch (error) {
+                              toast({
+                                title: "Failed to restore settings",
+                                description: "The backup file is corrupted or invalid.",
+                                variant: "destructive",
+                                duration: 5000,
+                              });
+                            }
+                          };
+                          reader.readAsText(file);
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Restore settings from a previously exported backup file
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Database Management Card */}
+            <Card className="col-span-1 lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Database Management
+                </CardTitle>
+                <CardDescription>
+                  Manage your database and data
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Button variant="outline" className="w-full" onClick={() => {
+                    // Show confirmation dialog before purging data
+                    if (window.confirm("Are you sure you want to clean up old data? This will remove all resolved reports older than the data retention period.")) {
+                      // Simulate database cleanup
+                      setTimeout(() => {
+                        toast({
+                          title: "Database cleaned",
+                          description: `Old data has been successfully purged.`,
+                          duration: 3000,
+                        });
+                      }, 1500);
+                    }
+                  }}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clean Old Data
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Remove resolved reports older than {systemSettings.dataRetentionDays} days
+                  </p>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-2">
+                  <Button variant="outline" className="w-full" onClick={() => {
+                    // Show loading state
+                    toast({
+                      title: "Optimizing database",
+                      description: "This may take a few moments...",
+                      duration: 2000,
+                    });
+                    
+                    // Simulate database optimization
+                    setTimeout(() => {
+                      toast({
+                        title: "Database optimized",
+                        description: "Database indexes and tables have been optimized.",
+                        duration: 3000,
+                      });
+                    }, 3000);
+                  }}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Optimize Database
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Optimize database performance and indexes
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
       
@@ -2328,36 +2952,38 @@ const AdminPortal: React.FC = () => {
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
+                          id="date"
                           variant={"outline"}
-                          className="w-full justify-start text-left font-normal mt-1"
+                          className={cn(
+                            "w-full md:w-[300px] justify-start text-left font-normal",
+                            !reportFilters.dateRange && "text-muted-foreground"
+                          )}
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {reportFilters.dateRange?.from ? (
                             reportFilters.dateRange.to ? (
                               <>
-                                {reportFilters.dateRange.from.toLocaleDateString()} -{" "}
-                                {reportFilters.dateRange.to.toLocaleDateString()}
+                                {format(reportFilters.dateRange.from, "LLL dd, y")} -{" "}
+                                {format(reportFilters.dateRange.to, "LLL dd, y")}
                               </>
                             ) : (
-                              reportFilters.dateRange.from.toLocaleDateString()
+                              format(reportFilters.dateRange.from, "LLL dd, y")
                             )
                           ) : (
-                            <span>Pick a date range</span>
+                            <span>Select date range</span>
                           )}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-4" align="start">
-                        <div className="bg-background rounded-md p-3">
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="flex flex-col sm:flex-row">
                           <Calendar
-                            mode="range"
-                            selected={reportFilters.dateRange}
-                            onSelect={(range) => {
-                              if (range) {
-                                setReportFilters({...reportFilters, dateRange: range});
-                              }
-                            }}
                             initialFocus
-                            className="border-none"
+                            mode="range"
+                            defaultMonth={reportFilters.dateRange?.from}
+                            selected={reportFilters.dateRange}
+                            onSelect={(range) => setReportFilters({...reportFilters, dateRange: range})}
+                            numberOfMonths={1}
+                            className="rounded-md border"
                           />
                         </div>
                       </PopoverContent>
@@ -2470,7 +3096,7 @@ const AdminPortal: React.FC = () => {
                       <p className="text-sm font-medium">Date Range</p>
                       <p className="text-sm text-muted-foreground">
                         {reportFilters.dateRange?.from 
-                          ? `${reportFilters.dateRange.from.toLocaleDateString()} - ${reportFilters.dateRange.to?.toLocaleDateString() || 'Present'}`
+                          ? `${format(reportFilters.dateRange.from, "LLL dd, y")} - ${format(reportFilters.dateRange.to, "LLL dd, y")}`
                           : 'All dates'
                         }
                       </p>
