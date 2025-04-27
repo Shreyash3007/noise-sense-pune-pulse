@@ -1,4 +1,3 @@
-
 import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -24,6 +23,8 @@ const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const RecordPage = lazy(() => import("./pages/RecordPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ThemePreview = lazy(() => import("./components/ThemePreview"));
+const AIChat = lazy(() => import("./pages/ai-chat"));
+const ApiTest = lazy(() => import("./pages/ApiTest"));
 
 // Add custom CSS for animations
 import "./App.css";
@@ -114,6 +115,8 @@ const App = () => {
                     <Route path="/admin/login" element={<AdminLogin />} />
                     <Route path="/record" element={<RecordPage />} />
                     <Route path="/theme" element={<ThemePreview />} />
+                    <Route path="/ai-chat" element={<AIChat />} />
+                    <Route path="/api-test" element={<ApiTest />} />
                     <Route path="/analytics" element={<Navigate to="/map" replace />} />
                     <Route path="/dashboard" element={<Navigate to="/map" replace />} />
                     <Route path="*" element={<NotFound />} />
@@ -121,7 +124,7 @@ const App = () => {
                 </Suspense>
               </AnimatePresence>
             </MainLayout>
-            <AIChatWidget />
+            {/* <AIChatWidget /> */}
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>

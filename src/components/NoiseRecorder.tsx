@@ -30,10 +30,77 @@ import {
 
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { env } from "@/lib/env";
+import { env, debug } from "@/lib/env";
 
-// Set Mapbox token from environment - ensure it exists
-mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN || 'MAPBOX_TOKEN_HERE';
+// Set Mapbox token from environment with error handling
+const MAPBOX_TOKEN = env.MAPBOX_ACCESS_TOKEN;
+let mapboxInitialized = false;
+
+try {
+  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'pk.your-mapbox-token') {
+    console.warn("⚠️ Mapbox token is missing or using default value. Location features will be limited.");
+  } else {
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    mapboxInitialized = true;
+    debug("Mapbox initialized successfully");
+  }
+} catch (error) {
+  console.error("Failed to initialize Mapbox:", error);
+}
+
+// Custom GeolocationControl that handles errors gracefully
+function createMapWithGeolocation(container, initialLocation) {
+  // If Mapbox failed to initialize, return a simple message
+  if (!mapboxInitialized) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md';
+    errorDiv.innerHTML = 'Map unavailable - check Mapbox token configuration';
+    container.appendChild(errorDiv);
+    return null;
+  }
+
+  try {
+    const map = new mapboxgl.Map({
+      container: container,
+      style: "mapbox://styles/mapbox/dark-v11",
+      center: [initialLocation.longitude, initialLocation.latitude],
+      zoom: 15,
+      attributionControl: false,
+    });
+    
+    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    
+    // Add geolocation with error handling
+    const geolocateControl = new mapboxgl.GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true
+      },
+      trackUserLocation: true,
+      showUserLocation: true,
+      showAccuracyCircle: true,
+      fitBoundsOptions: {
+        maxZoom: 15
+      }
+    });
+    
+    map.addControl(geolocateControl);
+    
+    // Handle geolocation errors silently
+    geolocateControl.on('error', (err) => {
+      console.warn('Geolocation error in NoiseRecorder:', err);
+      // We don't show an error message to the user
+    });
+    
+    return map;
+  } catch (error) {
+    console.error("Failed to create map:", error);
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md';
+    errorDiv.innerHTML = 'Map failed to load - please try again later';
+    container.appendChild(errorDiv);
+    return null;
+  }
+}
 
 const NoiseRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -86,11 +153,45 @@ const NoiseRecorder = () => {
   const getLocationAsync = async () => {
     setLocationStatus("fetching");
     try {
+      // Check if geolocation is supported
+      if (!navigator.geolocation) {
+        toast({
+          title: "Geolocation Not Supported",
+          description: "Your browser doesn't support geolocation services. You can still record noise without location data.",
+          variant: "destructive",
+        });
+        setLocationStatus("error");
+        setShowLocationError(true);
+        return null;
+      }
+
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           resolve, 
           (posError) => {
             console.error("Location error:", posError.message);
+            
+            // Handle specific geolocation errors
+            if (posError.code === 1) { // Permission denied
+              toast({
+                title: "Location Permission Denied",
+                description: "You can continue without location or enable location in your browser settings and try again.",
+                variant: "destructive",
+              });
+            } else if (posError.code === 2) { // Position unavailable
+              toast({
+                title: "Location Unavailable",
+                description: "Unable to determine your location. Check your connection or try again later.",
+                variant: "destructive",
+              });
+            } else if (posError.code === 3) { // Timeout
+              toast({
+                title: "Location Request Timeout",
+                description: "Location request timed out. Please try again.",
+                variant: "destructive",
+              });
+            }
+            
             setLocationStatus("error");
             setShowLocationError(true);
             reject({ handled: true, error: posError });
@@ -113,24 +214,13 @@ const NoiseRecorder = () => {
       
       return pos;
     } catch (error: any) {
-      console.error("Unexpected error in location handling:", error);
-      
-      if (error?.error?.code === 1) {
+      // Only log error if it wasn't already handled in the rejection handler
+      if (!error?.handled) {
+        console.error("Unexpected error in location handling:", error);
+        
         toast({
-          title: "Location Permission Denied",
-          description: "Please enable location services in your browser settings to use this feature.",
-          variant: "destructive",
-        });
-      } else if (error?.error?.code === 2) {
-        toast({
-          title: "Location Unavailable",
-          description: "Unable to determine your current location. Please try again or enter location manually.",
-          variant: "destructive",
-        });
-      } else if (error?.error?.code === 3) {
-        toast({
-          title: "Location Request Timeout",
-          description: "Location request took too long. Please try again with a better connection.",
+          title: "Location Error",
+          description: "An unexpected error occurred. You can continue without location data or try again.",
           variant: "destructive",
         });
       }
@@ -446,15 +536,11 @@ const NoiseRecorder = () => {
   useEffect(() => {
     if (isLocationMapOpen && locationMapContainer.current && location) {
       try {
-        locationMap.current = new mapboxgl.Map({
-          container: locationMapContainer.current,
-          style: "mapbox://styles/mapbox/dark-v11",
-          center: [location.longitude, location.latitude],
-          zoom: 15,
-          attributionControl: false,
-        });
-        
-        locationMap.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        // Use our custom function instead of directly creating the map
+        locationMap.current = createMapWithGeolocation(
+          locationMapContainer.current,
+          location
+        );
         
         locationMap.current.on('load', () => {
           if (!locationMap.current) return;

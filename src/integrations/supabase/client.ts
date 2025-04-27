@@ -4,7 +4,7 @@ import type { Database } from './types';
 
 // In production, these should come from environment variables
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://obolgajchkvvpvkxyoya.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ib2xnYWpjaGt2dnB2a3h5b3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0MjA3NzAsImV4cCI6MjA2MDk5Njc3MH0.wAPBgM1FNfw1J0GRawXZDOhlI6orGsR1gK50FnA9xLw";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ib2xnYWpjaGt2dnB2a3h5b3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTY5ODIxNjUsImV4cCI6MjAzMjU1ODE2NX0.3KnUDQkbzE-1lKuJ_Jb9dn88p1HE8HBc9TJnIgG_W9Q";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

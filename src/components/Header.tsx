@@ -42,6 +42,7 @@ export function Header() {
   const mainNavItems = [
     { label: "Home", path: "/", icon: <Volume2 className="h-4 w-4 mr-2" /> },
     { label: "About", path: "/about", icon: <Info className="h-4 w-4 mr-2" /> },
+    { label: "AI Chat", path: "/ai-chat", icon: <Mic className="h-4 w-4 mr-2" /> },
     { label: "Admin", path: "/admin", icon: <User className="h-4 w-4 mr-2" /> },
   ];
 

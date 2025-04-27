@@ -46,7 +46,7 @@ import { Separator } from "@/components/ui/separator";
 import { NoisePieChart } from "@/components/charts/NoisePieChart";
 import { NoiseBarChart } from "@/components/charts/NoiseBarChart";
 import { generatePuneNoiseData } from "@/lib/mock-data";
-import { getDeepSeekAnalytics, getDeepSeekRecommendations } from "@/integrations/deepseek/client";
+import { getAIAnalytics, getAIRecommendations, chatWithAI } from "@/integrations/openai/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -105,8 +105,8 @@ const LandingPage = () => {
       
       setIsAiInsightsLoading(true);
       try {
-        const analytics = await getDeepSeekAnalytics(noiseData);
-        const recommendations = await getDeepSeekRecommendations(noiseData);
+        const analytics = await getAIAnalytics(noiseData);
+        const recommendations = await getAIRecommendations(noiseData);
         
         setAiInsights(analytics);
         setAiRecommendations(recommendations);
@@ -131,10 +131,14 @@ const LandingPage = () => {
     setUserMessage("");
     setIsChatLoading(true);
 
-    // Use the improved DeepSeek chat function
+    // Use the NoiseSense AI chat function
     try {
-      const { chatWithDeepSeek } = await import('@/integrations/deepseek/client');
-      const response = await chatWithDeepSeek(userMessage);
+      const response = await chatWithAI([{ 
+        id: Date.now().toString(),
+        sender: 'user',
+        text: userMessage,
+        timestamp: new Date().toISOString()
+      }]);
       
       // Add AI response
       setChatMessages(prev => [
@@ -151,12 +155,12 @@ const LandingPage = () => {
         chatRef.current.scrollTop = chatRef.current.scrollHeight;
       }
     } catch (error) {
-      console.error("Error getting AI response:", error);
+      console.error("Error chatting with AI:", error);
       setChatMessages(prev => [
         ...prev, 
         { 
           role: 'ai', 
-          content: "I'm sorry, I'm having trouble analyzing the noise data right now. Please try again later."
+          content: "I'm sorry, I couldn't process your request at the moment. Please try again later."
         }
       ]);
       setIsChatLoading(false);
@@ -339,10 +343,10 @@ const LandingPage = () => {
                 Join our crowdsourced initiative to map, analyze, and address urban noise pollution through citizen science.
               </motion.p>
               
-              <motion.div
+    <motion.div 
                 className="mt-16 hidden lg:block"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
                 transition={{ delay: 1.2, duration: 1 }}
               >
                 <button 
@@ -504,7 +508,7 @@ const LandingPage = () => {
               </div>
             </motion.div>
             
-            {/* DeepSeek AI Insights - 1/3 width on desktop */}
+            {/* NoiseSense AI Insights - 1/3 width on desktop */}
             <motion.div 
               className="bg-card rounded-lg shadow-xl p-4 overflow-hidden border border-border"
               whileHover={{ 
@@ -513,9 +517,9 @@ const LandingPage = () => {
             >
               <div className="flex items-center gap-2 mb-4">
                 <Brain className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold">DeepSeek AI Insights</h3>
-              </div>
-              
+                <h3 className="text-lg font-semibold">NoiseSense AI Insights</h3>
+      </div>
+
               {isAiInsightsLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-4 w-3/4" />
@@ -648,7 +652,7 @@ const LandingPage = () => {
                     )}
                     
                     <div className="mt-2 text-xs text-right text-muted-foreground">
-                      Powered by DeepSeek AI
+                      Powered by NoiseSense AI
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -841,8 +845,8 @@ const LandingPage = () => {
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Understanding the primary sources of urban noise helps target reduction efforts effectively.
             </p>
-          </div>
-          
+        </div>
+
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             {noiseSources.map((source, index) => (
               <Card key={index} className="flex flex-col items-center p-6 text-center h-full">
@@ -853,7 +857,7 @@ const LandingPage = () => {
                 <p className="text-3xl font-bold text-primary">{source.percentage}%</p>
                 <Separator className="my-4" />
                 <p className="text-sm text-muted-foreground">of all reports</p>
-              </Card>
+          </Card>
             ))}
           </div>
         </div>
@@ -997,7 +1001,7 @@ const LandingPage = () => {
                 <p className="text-muted-foreground text-center">
                   Use our app to measure noise levels in your area. Just press record and let your device do the work.
                 </p>
-              </div>
+      </div>
               <div className="hidden md:block absolute top-1/2 left-full w-12 h-1 bg-gradient-to-r from-purple-500 to-transparent transform -translate-y-1/2 -translate-x-6"></div>
             </motion.div>
             
@@ -1017,7 +1021,7 @@ const LandingPage = () => {
                 <p className="text-muted-foreground text-center">
                   Add details about the noise source and submit your report to our database.
                 </p>
-              </div>
+      </div>
               <div className="hidden md:block absolute top-1/2 left-full w-12 h-1 bg-gradient-to-r from-blue-500 to-transparent transform -translate-y-1/2 -translate-x-6"></div>
             </motion.div>
             
@@ -1077,8 +1081,8 @@ const LandingPage = () => {
             
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               {/* View Analytics button removed */}
-            </div>
-          </motion.div>
+      </div>
+    </motion.div>
         </div>
       </motion.section>
     </div>

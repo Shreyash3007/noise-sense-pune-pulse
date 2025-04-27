@@ -185,8 +185,23 @@ export const NoiseLevelsMap: React.FC<NoiseLevelsMapProps> = ({ data }) => {
         positionOptions: {
           enableHighAccuracy: true
         },
-        trackUserLocation: true
+        trackUserLocation: true,
+        showUserLocation: true,
+        showAccuracyCircle: true,
+        fitBoundsOptions: {
+          maxZoom: 15
+        }
       }));
+      
+      // Handle geolocation errors
+      const geolocateControl = map.current._controls.find(control => control instanceof mapboxgl.GeolocateControl);
+      if (geolocateControl) {
+        geolocateControl.on('error', (err) => {
+          console.warn('Geolocation error:', err);
+          // Don't show error toast to avoid disrupting user experience
+          // Just log to console for debugging
+        });
+      }
       
       // Create GeoJSON data from reports
       const geojsonData: NoiseGeoJSON = {

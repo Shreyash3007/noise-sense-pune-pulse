@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Filter, Download, BarChart4, PieChart, LineChart, Share2, Loader2 } from "lucide-react";
-import { getDeepSeekAnalytics } from '@/integrations/deepseek/client';
+import { getAIAnalytics } from '@/integrations/openai/client';
 
 interface NoiseReport {
   id: string;
@@ -67,32 +67,33 @@ export const NoiseAnalyticsAdvanced: React.FC<NoiseAnalyticsAdvancedProps> = ({ 
   const [activeTab, setActiveTab] = useState(view === 'predictive' ? 'trends' : 
                                              view === 'correlation' ? 'correlation' : 
                                              view === 'insights' ? 'distribution' : 'trends');
-  const [aiData, setAiData] = useState<any>(null);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   // Fetch AI analytics when component mounts or data changes
   useEffect(() => {
-    const fetchAiAnalytics = async () => {
+    const fetchAnalytics = async () => {
       if (!data || data.length === 0) return;
       
       setLoading(true);
       try {
-        const analytics = await getDeepSeekAnalytics(data);
-        setAiData(analytics);
+        // Process data for trend analysis using NoiseSense AI
+        const analytics = await getAIAnalytics(data);
+        setAnalyticsData(analytics);
       } catch (error) {
-        console.error('Error fetching AI analytics:', error);
+        console.error("Error fetching analytics data:", error);
       } finally {
         setLoading(false);
       }
     };
     
-    fetchAiAnalytics();
+    fetchAnalytics();
   }, [data]);
 
-  // Process data for trend analysis using DeepSeek AI
+  // Process data for trend analysis using NoiseSense AI
   const processTrendData = () => {
-    if (aiData && aiData.predictions && aiData.predictions.length > 0) {
-      return aiData.predictions.map((pred: any) => ({
+    if (analyticsData && analyticsData.predictions && analyticsData.predictions.length > 0) {
+      return analyticsData.predictions.map((pred: any) => ({
         name: pred.date.split('-').slice(1).join('/'), // Format as MM/DD
         predicted: pred.predictedLevel,
         confidence: pred.confidence
@@ -224,8 +225,8 @@ export const NoiseAnalyticsAdvanced: React.FC<NoiseAnalyticsAdvancedProps> = ({ 
           <div className="mt-4 p-4 bg-accent/30 rounded-md">
             <p className="text-sm font-medium">Prediction Insights:</p>
             <ul className="text-sm mt-2 space-y-1">
-              {aiData && aiData.insights ? (
-                aiData.insights
+              {analyticsData && analyticsData.insights ? (
+                analyticsData.insights
                   .filter((insight: any) => insight.category === 'trend' || insight.category === 'recommendation')
                   .slice(0, 3)
                   .map((insight: any, idx: number) => (
@@ -292,10 +293,10 @@ export const NoiseAnalyticsAdvanced: React.FC<NoiseAnalyticsAdvancedProps> = ({ 
               </ScatterChart>
             </ResponsiveContainer>
           </div>
-          {aiData && aiData.correlations && (
+          {analyticsData && analyticsData.correlations && (
             <div className="mt-4 space-y-2">
               <p className="text-sm font-medium">Key Correlations:</p>
-              {aiData.correlations.map((corr: any, idx: number) => (
+              {analyticsData.correlations.map((corr: any, idx: number) => (
                 <div key={idx} className="text-sm">
                   <div className="flex justify-between items-center">
                     <p>{corr.factor}</p>
@@ -373,11 +374,11 @@ export const NoiseAnalyticsAdvanced: React.FC<NoiseAnalyticsAdvancedProps> = ({ 
           </div>
           
           {/* Display AI-generated insights */}
-          {aiData && aiData.insights && (
+          {analyticsData && analyticsData.insights && (
             <div className="bg-card rounded-lg p-4 border border-border mt-4">
-              <h4 className="text-sm font-medium mb-3">DeepSeek AI Insights:</h4>
+              <h4 className="text-sm font-medium mb-3">NoiseSense AI Insights:</h4>
               <div className="space-y-3">
-                {aiData.insights.map((insight: any, idx: number) => (
+                {analyticsData.insights.map((insight: any, idx: number) => (
                   <div 
                     key={idx}
                     className={`p-3 rounded-lg ${
@@ -398,11 +399,11 @@ export const NoiseAnalyticsAdvanced: React.FC<NoiseAnalyticsAdvancedProps> = ({ 
           )}
           
           {/* Anomalies section */}
-          {aiData && aiData.anomalies && aiData.anomalies.length > 0 && (
+          {analyticsData && analyticsData.anomalies && analyticsData.anomalies.length > 0 && (
             <div className="bg-card rounded-lg p-4 border border-border mt-4">
               <h4 className="text-sm font-medium mb-3">Detected Anomalies:</h4>
               <div className="space-y-3">
-                {aiData.anomalies.map((anomaly: any, idx: number) => (
+                {analyticsData.anomalies.map((anomaly: any, idx: number) => (
                   <div 
                     key={idx}
                     className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500"

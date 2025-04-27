@@ -96,7 +96,6 @@ import { PUNE_AREAS } from '@/lib/mock-data';
 import ReactMarkdown from 'react-markdown';
 import { format } from 'date-fns';
 import { NoiseLevelsMap } from "@/components/NoiseLevelsMap";
-import NoiseSenseChat from "@/components/NoiseSenseChat";
 import {
   LineChart,
   AreaChart,

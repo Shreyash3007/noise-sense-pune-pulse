@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,11 +62,13 @@ const ChatBox: React.FC<ChatBoxProps> = ({
     setIsLoading(true);
 
     try {
-      // Format messages for AI
+      // Format messages for AI with the correct format
       const aiMessages: NoiseAIMessage[] = [
-        { role: 'system', content: isAdmin 
-          ? 'You are NoiseSense AI, a specialized assistant for noise pollution management with access to detailed analytics. Help government officials and administrators understand noise data, identify problematic areas, and suggest policy interventions.' 
-          : 'You are NoiseSense AI, a helpful assistant that provides information about noise pollution, its effects, and mitigation strategies to the general public in a clear and accessible way.'
+        { 
+          role: 'system', 
+          content: isAdmin 
+            ? 'You are NoiseSense AI, a specialized assistant for noise pollution management with access to detailed analytics. Help government officials and administrators understand noise data, identify problematic areas, and suggest policy interventions.' 
+            : 'You are NoiseSense AI, a helpful assistant that provides information about noise pollution, its effects, and mitigation strategies to the general public in a clear and accessible way.'
         },
         ...messages.map(msg => ({
           role: msg.source === 'user' ? 'user' as const : 'assistant' as const,
@@ -88,9 +89,19 @@ const ChatBox: React.FC<ChatBoxProps> = ({
       setMessages(prev => [...prev, aiResponse]);
     } catch (error) {
       console.error('Error getting AI response:', error);
+      
+      // Add a fallback message on error
+      const fallbackResponse: NoiseAIResponse = {
+        text: "I'm having trouble processing your request right now. Please try again later.",
+        timestamp: new Date().toISOString(),
+        source: 'ai'
+      };
+      
+      setMessages(prev => [...prev, fallbackResponse]);
+      
       toast({
         title: "Error",
-        description: "Failed to get a response. Please try again.",
+        description: "Failed to get a response. Using local fallback.",
         variant: "destructive",
       });
     } finally {
@@ -161,9 +172,25 @@ const ChatBox: React.FC<ChatBoxProps> = ({
                     ? 'bg-primary text-primary-foreground ml-2' 
                     : 'bg-muted'}`}
                 >
-                  <ReactMarkdown className="prose dark:prose-invert prose-sm max-w-none">
-                    {message.text}
-                  </ReactMarkdown>
+                  <div className="prose dark:prose-invert prose-sm max-w-none">
+                    <ReactMarkdown
+                      components={{
+                        // Define any custom components you need
+                        p: ({ children }) => <p className="my-1">{children}</p>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 my-2">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 my-2">{children}</ol>,
+                        li: ({ children }) => <li className="my-1">{children}</li>,
+                        h1: ({ children }) => <h1 className="text-lg font-bold my-2">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-md font-bold my-2">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-sm font-bold my-2">{children}</h3>,
+                        a: ({ href, children }) => <a href={href} className="text-primary underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                        code: ({ children }) => <code className="bg-muted-foreground/20 rounded px-1">{children}</code>,
+                        pre: ({ children }) => <pre className="bg-muted-foreground/20 p-2 rounded my-2 overflow-x-auto">{children}</pre>
+                      }}
+                    >
+                      {message.text}
+                    </ReactMarkdown>
+                  </div>
                   <div className={`text-xs mt-1 ${message.source === 'user' 
                     ? 'text-primary-foreground/70' 
                     : 'text-muted-foreground'}`}>

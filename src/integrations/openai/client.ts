@@ -1,4 +1,3 @@
-
 import { NoiseReport, NoiseAIMessage, NoiseAIResponse } from "@/types";
 
 /**
@@ -32,7 +31,12 @@ export interface AIAnalytics {
   recommendedActions: string[];
 }
 
-// For demonstration purposes, we'll use simulation until the Supabase Edge Function is set up
+// OpenAI API configuration (updated to use GitHub AI models)
+const GITHUB_TOKEN = "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";
+const GITHUB_API_ENDPOINT = "https://models.github.ai/inference";
+const AI_MODEL = "openai/gpt-4.1";
+
+// Set to true to use simulation to avoid API errors
 const USE_SIMULATION = true;
 
 /**
@@ -42,22 +46,65 @@ const USE_SIMULATION = true;
  */
 export async function getAIAnalytics(noiseReports: NoiseReport[]): Promise<AIAnalytics> {
   try {
-    // In a real implementation, we would call the Supabase Edge Function
+    // Call GitHub AI API directly
     if (!USE_SIMULATION) {
-      console.log("Using OpenAI API for analytics");
-      const response = await fetch('/api/analyze-noise-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ reports: noiseReports })
-      });
+      console.log("Using GitHub AI API for analytics");
       
-      if (!response.ok) {
-        throw new Error(`AI API error: ${response.statusText}`);
+      try {
+        const response = await fetch(`${GITHUB_API_ENDPOINT}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GITHUB_TOKEN}`
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: "system",
+                content: "You are NoiseSense AI, specialized in analyzing noise pollution data. Analyze the provided noise reports and return the results in a specific JSON format with predictions, insights, correlations, anomalies, and recommendedActions fields."
+              },
+              {
+                role: "user",
+                content: `Analyze these noise reports and provide insights: ${JSON.stringify(noiseReports.slice(0, 10))}`
+              }
+            ],
+            temperature: 1.0,
+            top_p: 1.0,
+            model: AI_MODEL
+          })
+        });
+        
+        console.log("API Response status:", response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API Error (${response.status}):`, errorText);
+          throw new Error(`AI API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log("API Response data:", data);
+        
+        const aiResponse = data.choices[0].message.content;
+        
+        // Try to extract JSON from the response
+        try {
+          // Look for JSON object in the response
+          const jsonMatch = aiResponse.match(/\{.*\}/s);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          }
+        } catch (parseError) {
+          console.error("Failed to parse AI response as JSON:", parseError);
+        }
+      } catch (fetchError) {
+        console.error("API Fetch Error:", fetchError);
+        throw fetchError;
       }
       
-      return await response.json();
+      // If we couldn't extract valid JSON or there was an error, fall back to simulation
+      console.log("Could not get valid response from API, falling back to simulation");
+      return generateSimulatedAnalytics(noiseReports);
     }
     
     // Using simulation for demo purposes
@@ -208,23 +255,50 @@ function generateSimulatedAnalytics(noiseReports: NoiseReport[]): AIAnalytics {
  */
 export async function getAIRecommendations(noiseReports: NoiseReport[]): Promise<string> {
   try {
-    // In a real implementation, we would call the Supabase Edge Function
+    // Call GitHub AI API directly
     if (!USE_SIMULATION) {
-      console.log("Using OpenAI API for recommendations");
-      const response = await fetch('/api/recommend', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ reports: noiseReports })
-      });
+      console.log("Using GitHub AI API for recommendations");
       
-      if (!response.ok) {
-        throw new Error(`AI API error: ${response.statusText}`);
+      try {
+        const response = await fetch(`${GITHUB_API_ENDPOINT}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GITHUB_TOKEN}`
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: "system",
+                content: "You are NoiseSense AI, specialized in providing recommendations for noise pollution mitigation based on analysis of noise data."
+              },
+              {
+                role: "user",
+                content: `Based on these noise reports, provide detailed recommendations for noise pollution mitigation: ${JSON.stringify(noiseReports.slice(0, 10))}`
+              }
+            ],
+            temperature: 1.0,
+            top_p: 1.0,
+            model: AI_MODEL
+          })
+        });
+        
+        console.log("API Response status:", response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API Error (${response.status}):`, errorText);
+          throw new Error(`AI API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log("API Response data:", data);
+        
+        return data.choices[0].message.content;
+      } catch (fetchError) {
+        console.error("API Fetch Error:", fetchError);
+        throw fetchError;
       }
-      
-      const data = await response.json();
-      return data.recommendation;
     }
     
     // Using simulation for demo purposes
@@ -280,36 +354,68 @@ These measures could potentially reduce ambient noise levels by 12-15dB in the m
 
 /**
  * Chat with NoiseSense AI
- * @param messages Array of previous messages
- * @returns Promise with AI response
+ * @param messages Array of messages to process
+ * @returns Promise with AI-generated response
  */
 export async function chatWithAI(messages: NoiseAIMessage[]): Promise<string> {
   try {
-    // In a real implementation, we would call the OpenAI API through Supabase Edge Function
     if (!USE_SIMULATION) {
-      console.log("Using OpenAI API for chat");
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ messages })
-      });
+      console.log("Using GitHub AI API for chat");
       
-      if (!response.ok) {
-        throw new Error(`AI API error: ${response.statusText}`);
+      // Format messages for API
+      const formattedMessages = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+      try {
+        const response = await fetch(`${GITHUB_API_ENDPOINT}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GITHUB_TOKEN}`
+          },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: "system",
+                content: "You are NoiseSense AI, a specialized assistant for noise pollution monitoring and analysis. Provide concise, helpful responses about noise pollution, its effects on health, mitigation strategies, and interpretation of noise data. Focus on being accurate, educational, and solution-oriented."
+              },
+              ...formattedMessages
+            ],
+            temperature: 1.0,
+            top_p: 1.0,
+            model: AI_MODEL
+          })
+        });
+        
+        console.log("API Response status:", response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API Error (${response.status}):`, errorText);
+          throw new Error(`AI API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log("API Response data:", data);
+        
+        return data.choices[0].message.content;
+      } catch (fetchError) {
+        console.error("API Fetch Error:", fetchError);
+        throw fetchError;
       }
-      
-      const data = await response.json();
-      return data.response;
     }
     
-    // Simulate AI chat responses
-    console.log("Using simulated NoiseSense AI chat responses");
-    return getSimulatedChatResponse(messages[messages.length - 1].content);
+    // Using simulation as fallback
+    console.log("Using simulated NoiseSense AI chat");
+    const lastMessage = messages[messages.length - 1];
+    return getSimulatedChatResponse(lastMessage.content || "");
   } catch (error) {
-    console.error("Error in AI chat:", error);
-    return getSimulatedChatResponse(messages[messages.length - 1].content);
+    console.error("Error in chat with AI:", error);
+    // If API call fails, fall back to simulation
+    const lastMessage = messages[messages.length - 1];
+    return getSimulatedChatResponse(lastMessage.content || "");
   }
 }
 
@@ -317,6 +423,11 @@ export async function chatWithAI(messages: NoiseAIMessage[]): Promise<string> {
  * Get a simulated chat response based on the user's query
  */
 function getSimulatedChatResponse(message: string): string {
+  // Safety check - if message is undefined or null, use empty string
+  if (!message) {
+    return "I'm not sure I understand your question. Could you provide more details about what you'd like to know about noise pollution?";
+  }
+  
   // Convert message to lowercase for easier matching
   const query = message.toLowerCase();
   
