@@ -15,7 +15,6 @@
   "scripts": {
     "test": "node test-github-api.js",
     "dev": "vite"
-    "scripts": {
     "build:dev": "vite build --mode development"
 }
 
