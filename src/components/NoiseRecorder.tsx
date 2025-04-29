@@ -178,22 +178,26 @@ const NoiseRecorder = () => {
                 description: "You can continue without location or enable location in your browser settings and try again.",
                 variant: "destructive",
               });
+              setLocationStatus("skipped");
+              setShowLocationError(false);
             } else if (posError.code === 2) { // Position unavailable
               toast({
                 title: "Location Unavailable",
                 description: "Unable to determine your location. Check your connection or try again later.",
                 variant: "destructive",
               });
+              setLocationStatus("error");
+              setShowLocationError(true);
             } else if (posError.code === 3) { // Timeout
               toast({
                 title: "Location Request Timeout",
                 description: "Location request timed out. Please try again.",
                 variant: "destructive",
               });
+              setLocationStatus("error");
+              setShowLocationError(true);
             }
             
-            setLocationStatus("error");
-            setShowLocationError(true);
             reject({ handled: true, error: posError });
           }, 
           {
@@ -223,10 +227,10 @@ const NoiseRecorder = () => {
           description: "An unexpected error occurred. You can continue without location data or try again.",
           variant: "destructive",
         });
+        setLocationStatus("error");
+        setShowLocationError(true);
       }
       
-      setLocationStatus("error");
-      setShowLocationError(true);
       return null;
     }
   };
@@ -587,60 +591,55 @@ const NoiseRecorder = () => {
   }, [isLocationMapOpen, location]);
 
   const renderLocationConfirmationDialog = () => {
+    if (!isLocationMapOpen) return null;
+
     return (
-      <Dialog open={isLocationMapOpen} onOpenChange={(open) => {
-        if (!open && locationMap.current) {
-          locationMap.current.remove();
-          locationMap.current = null;
-        }
-        setIsLocationMapOpen(open);
-      }}>
-        <DialogContent className="sm:max-w-xl">
+      <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Confirm Your Location</DialogTitle>
             <DialogDescription>
-              Drag the marker to adjust your exact location if needed. This helps us accurately map noise pollution data.
+              {locationStatus === "skipped" ? (
+                "Location access was denied. You can continue without location data or try again."
+              ) : (
+                "Please confirm your location on the map. You can drag the marker to adjust if needed."
+              )}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="mb-4 rounded-md overflow-hidden border">
-            <div ref={locationMapContainer} className="h-[300px] w-full"></div>
+          <div className="mt-4">
+            {locationStatus === "skipped" ? (
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-md">
+                <p>You can still submit the noise report without location data.</p>
+              </div>
+            ) : (
+              <div ref={locationMapContainer} className="h-[400px] w-full rounded-md overflow-hidden" />
+            )}
           </div>
           
-          <div className="flex items-center gap-2 mb-4 text-sm bg-blue-50 dark:bg-blue-900/30 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-            <Info className="h-5 w-5 text-blue-500 flex-shrink-0" />
-            <div>
-              <p className="font-medium">Your location will be used to:</p>
-              <ul className="list-disc ml-5 mt-1">
-                <li>Map noise pollution across Pune</li>
-                <li>Identify noise hotspots in your neighborhood</li>
-                <li>Help authorities target noise reduction efforts</li>
-              </ul>
-            </div>
-          </div>
-          
-          {location && (
-            <div className="flex items-center gap-2 mb-2">
-              <MapPin className="h-4 w-4 text-purple-500" />
-              <span className="font-medium">Current coordinates:</span>
-              <span className="text-gray-600 dark:text-gray-400">
-                {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
-              </span>
-            </div>
-          )}
-          
-          <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
-            <Button variant="outline" onClick={() => setIsLocationMapOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              variant="default" 
-              className="bg-purple-600 hover:bg-purple-700"
-              onClick={handleLocationConfirmation}
-            >
-              <MapPin className="mr-2 h-4 w-4" />
-              Confirm Location
-            </Button>
+          <DialogFooter className="mt-4">
+            {locationStatus === "skipped" ? (
+              <>
+                <Button variant="outline" onClick={() => setIsLocationMapOpen(false)}>
+                  Continue Without Location
+                </Button>
+                <Button onClick={retryPermissions}>
+                  Try Again
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setIsLocationMapOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => {
+                  setIsLocationMapOpen(false);
+                  startRecording();
+                }}>
+                  Confirm Location
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
