@@ -1,3 +1,4 @@
+
 /**
  * Environment configuration with fallbacks for essential values
  * This centralizes all environmental configuration with type safety
@@ -38,11 +39,11 @@ function parseBool(value: string | undefined): boolean {
 
 // Create and export the environment configuration
 export const env: EnvConfig = {
-  // API Keys - using static values for demonstration
-  MAPBOX_ACCESS_TOKEN: getEnvVar('MAPBOX_ACCESS_TOKEN', 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4M29iazA2Z2gycXA4N2pmbDZmangifQ.-g_vE53SD2WrJ6tFX7QHmA'),
-  SUPABASE_URL: getEnvVar('SUPABASE_URL', 'https://your-supabase-project.supabase.co'),
-  SUPABASE_ANON_KEY: getEnvVar('SUPABASE_ANON_KEY', 'your-supabase-anon-key'),
-  OPENROUTER_API_KEY: "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",
+  // API Keys with values from the .env file or fallbacks
+  MAPBOX_ACCESS_TOKEN: getEnvVar('MAPBOX_ACCESS_TOKEN', 'pk.eyJ1Ijoic2hyZXlhc2gwNDU1MyIsImEiOiJjbTl1MzBiYzUwNHF5MmlzYWIwNGtxcWd3In0.PulE0Yanu2kaNNYPGEgnlw'),
+  SUPABASE_URL: getEnvVar('SUPABASE_URL', 'https://obolgajchkvvpvkxyoya.supabase.co'),
+  SUPABASE_ANON_KEY: getEnvVar('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ib2xnYWpjaGt2dnB2a3h5b3lhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0MjA3NzAsImV4cCI6MjA2MDk5Njc3MH0.wAPBgM1FNfw1J0GRawXZDOhlI6orGsR1gK50FnA9xLw'),
+  OPENROUTER_API_KEY: getEnvVar('OPENROUTER_API_KEY', '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'),
   
   // Feature flags
   ENABLE_ANALYTICS: parseBool(getEnvVar('ENABLE_ANALYTICS', 'false')),
@@ -75,4 +76,4 @@ export function debug(...args: any[]) {
   if (env.DEBUG_MODE) {
     console.log('[DEBUG]', ...args);
   }
-} 
+}
