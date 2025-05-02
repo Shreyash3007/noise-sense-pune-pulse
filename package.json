@@ -44,7 +44,8 @@
   "scripts": {
     "test": "node test-github-api.js",
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "build:dev": "vite build --mode development"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.10",
