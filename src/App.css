@@ -1,4 +1,3 @@
-
 /* Custom animations */
 @keyframes pulse {
   0%, 100% {
@@ -206,4 +205,171 @@
 button:disabled {
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+/* Calendar Fixes - Enhanced Styles */
+.fixed-calendar-wrapper {
+  position: relative;
+  z-index: 9999 !important;
+  max-width: 100%;
+  overflow: visible;
+  background-color: var(--background);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.rdp {
+  --rdp-cell-size: 40px;
+  --rdp-accent-color: var(--primary);
+  --rdp-background-color: var(--primary);
+  --rdp-accent-color-dark: var(--primary);
+  --rdp-background-color-dark: var(--primary);
+  --rdp-outline: 2px solid var(--focus-ring);
+  --rdp-outline-selected: 2px solid var(--focus-ring);
+  margin: 0 !important;
+  position: relative;
+  z-index: 10000 !important;
+}
+
+.rdp-months {
+  display: flex !important;
+  justify-content: center;
+}
+
+.rdp-month {
+  background: var(--background);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  margin: 0 !important;
+}
+
+.rdp-caption {
+  padding: 0.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.rdp-nav {
+  position: absolute;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  left: 0;
+  padding: 0 0.5rem;
+}
+
+.rdp-head_row,
+.rdp-row {
+  display: flex !important;
+  gap: 2px;
+}
+
+.rdp-head_cell {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+  text-align: center;
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rdp-cell {
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
+  text-align: center;
+}
+
+.rdp-button {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+}
+
+.rdp-button:hover {
+  background-color: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+.rdp-day_selected, 
+.rdp-day_selected:focus-visible, 
+.rdp-day_selected:hover {
+  color: var(--primary-foreground) !important;
+  background-color: var(--primary) !important;
+  opacity: 1 !important;
+}
+
+.rdp-day_today {
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.rdp-day_range_middle {
+  background-color: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+.rdp-day_range_start,
+.rdp-day_range_end {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+/* Fix for the calendar in the report generator */
+.report-date-filter .rdp {
+  margin: 0 auto !important;
+  width: 100%;
+}
+
+.report-date-filter .rdp-month {
+  width: 100% !important;
+}
+
+.report-date-filter .rdp-table {
+  width: 100%;
+}
+
+.report-date-filter .rdp-head_cell,
+.report-date-filter .rdp-cell {
+  width: 14.28% !important;
+  height: 36px !important;
+}
+
+/* Position dialogs and popovers above everything */
+.dialog-content,
+.popover-content,
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* Important override for the calendar container */
+[role="dialog"],
+[role="presentation"] {
+  isolation: isolate;
+  z-index: 9999 !important;
+}
+
+/* Force calendar to be above all other elements */
+.rdp-months,
+.rdp-month,
+.rdp-table,
+.rdp-day {
+  position: relative;
+  z-index: 10000 !important;
+}
+
+/* Ensure clickable elements remain interactive */
+.rdp-button:not([disabled]) {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 10001 !important;
 }

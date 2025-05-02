@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+// @ts-ignore
 import { motion } from "framer-motion";
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
@@ -50,7 +51,7 @@ import {
   EyeIcon,
   MoreHorizontalIcon,
   Brain,
-  AlertTriangleIcon,
+  AlertTriangle as AlertTriangleIcon,
   Share2,
   SearchIcon,
   ChevronDown,
@@ -72,7 +73,16 @@ import {
   Loader2,
   Save,
   Trash2,
-  Database
+  Database,
+  File,
+  FileIcon,
+  FileSpreadsheet,
+  Car,
+  HardHat,
+  Factory,
+  Music,
+  Leaf,
+  FileBarChart2
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
@@ -172,13 +182,17 @@ const AdminPortal: React.FC = () => {
     maxDecibel: number;
     statuses: string[];
     includeCharts: boolean;
+    includeLocationData: boolean;
+    includeSummaryStats: boolean;
   }>({
     dateRange: undefined,
     noiseTypes: [],
     minDecibel: 0,
     maxDecibel: 120,
     statuses: [],
-    includeCharts: true
+    includeCharts: true,
+    includeLocationData: true,
+    includeSummaryStats: true
   });
   const [reportData, setReportData] = useState<NoiseReport[]>([]);
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
@@ -229,18 +243,29 @@ const AdminPortal: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 800));
+        // Check if we already have stored data in localStorage
+        const storedReports = localStorage.getItem('noiseReports');
         
-        // Import and use the generatePuneNoiseData function
-        const { generatePuneNoiseData } = await import('@/lib/mock-data');
-        const mockData: NoiseReport[] = generatePuneNoiseData(500);
-        
-        setNoiseReports(mockData);
-        setLoading(false);
-        
-        // After fetching reports data, load AI insights
-        loadAIInsights(mockData);
+        if (storedReports) {
+          setNoiseReports(JSON.parse(storedReports));
+          setLoading(false);
+          
+          // After fetching reports data, load AI insights
+          loadAIInsights(JSON.parse(storedReports));
+        } else {
+          // Import and use the generatePuneNoiseData function if no stored data
+          const { generatePuneNoiseData } = await import('@/lib/mock-data');
+          const mockData: NoiseReport[] = generatePuneNoiseData(500);
+          
+          // Store the generated data
+          localStorage.setItem('noiseReports', JSON.stringify(mockData));
+          
+          setNoiseReports(mockData);
+          setLoading(false);
+          
+          // After fetching reports data, load AI insights
+          loadAIInsights(mockData);
+        }
       } catch (err) {
         setError("Failed to load noise reports data");
         setLoading(false);
@@ -307,11 +332,16 @@ const AdminPortal: React.FC = () => {
 
   // Handle status change
   const handleStatusChange = (id: string, newStatus: string) => {
-    setNoiseReports(
-      noiseReports.map((report) =>
-        report.id === id ? { ...report, status: newStatus } : report
-      )
+    const updatedReports = noiseReports.map((report) =>
+      report.id === id ? { ...report, status: newStatus } : report
     );
+    
+    // Update state
+    setNoiseReports(updatedReports);
+    
+    // Persist changes to localStorage
+    localStorage.setItem('noiseReports', JSON.stringify(updatedReports));
+    
     toast({
       title: "Status Updated",
       description: `Report #${id} marked as ${newStatus}`,
@@ -320,11 +350,16 @@ const AdminPortal: React.FC = () => {
 
   // Handle flag toggle
   const handleFlagToggle = (id: string) => {
-    setNoiseReports(
-      noiseReports.map((report) =>
-        report.id === id ? { ...report, flagged: !report.flagged } : report
-      )
+    const updatedReports = noiseReports.map((report) =>
+      report.id === id ? { ...report, flagged: !report.flagged } : report
     );
+    
+    // Update state
+    setNoiseReports(updatedReports);
+    
+    // Persist changes to localStorage
+    localStorage.setItem('noiseReports', JSON.stringify(updatedReports));
+    
     const report = noiseReports.find((r) => r.id === id);
     toast({
       title: report?.flagged ? "Flag Removed" : "Report Flagged",
@@ -698,39 +733,57 @@ const AdminPortal: React.FC = () => {
       // Set report data
       setReportData(filteredData);
       
-      // Organize reports by department
-      const reportsByDepartment: {[key: string]: NoiseReport[]} = {
-        "Traffic Department": [],
-        "Construction Department": [],
-        "Industrial Department": [],
-        "Music & Events Department": [],
-        "Environment Department": []
-      };
-      
-      // Categorize reports by noise type to relevant departments
-      filteredData.forEach(report => {
-        const noiseType = report.noise_type.toLowerCase();
+      // Generate different department reports based on report type
+      if (reportType === "detailed" || reportType === "custom") {
+        // For detailed and custom reports, provide comprehensive breakdowns by department
+        const reportsByDepartment: {[key: string]: NoiseReport[]} = {
+          "Traffic Department": [],
+          "Construction Department": [],
+          "Industrial Department": [],
+          "Music & Events Department": [],
+          "Environment Department": []
+        };
         
-        if (noiseType.includes('traffic') || noiseType.includes('vehicle') || noiseType.includes('horn')) {
-          reportsByDepartment["Traffic Department"].push(report);
-        } else if (noiseType.includes('construction') || noiseType.includes('drilling') || noiseType.includes('machinery')) {
-          reportsByDepartment["Construction Department"].push(report);
-        } else if (noiseType.includes('industrial') || noiseType.includes('factory')) {
-          reportsByDepartment["Industrial Department"].push(report);
-        } else if (noiseType.includes('music') || noiseType.includes('event') || noiseType.includes('party')) {
-          reportsByDepartment["Music & Events Department"].push(report);
-        } else {
-          reportsByDepartment["Environment Department"].push(report);
+        // Categorize reports by noise type to relevant departments
+        filteredData.forEach(report => {
+          const noiseType = report.noise_type.toLowerCase();
+          
+          if (noiseType.includes('traffic') || noiseType.includes('vehicle') || noiseType.includes('horn')) {
+            reportsByDepartment["Traffic Department"].push(report);
+          } else if (noiseType.includes('construction') || noiseType.includes('drilling') || noiseType.includes('machinery')) {
+            reportsByDepartment["Construction Department"].push(report);
+          } else if (noiseType.includes('industrial') || noiseType.includes('factory')) {
+            reportsByDepartment["Industrial Department"].push(report);
+          } else if (noiseType.includes('music') || noiseType.includes('event') || noiseType.includes('party')) {
+            reportsByDepartment["Music & Events Department"].push(report);
+          } else {
+            reportsByDepartment["Environment Department"].push(report);
+          }
+        });
+        
+        setDepartmentReports(reportsByDepartment);
+        
+        // For detailed reports, also analyze time patterns
+        if (reportType === "detailed") {
+          // Sort by time for time-based analysis (would be more sophisticated in production)
+          filteredData.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         }
-      });
+      } else {
+        // For summary reports, provide a simpler breakdown
+        const basicDepartments: {[key: string]: NoiseReport[]} = {
+          "General Overview": filteredData
+        };
+        
+        // Set a simplified department report for summary view
+        setDepartmentReports(basicDepartments);
+      }
       
-      setDepartmentReports(reportsByDepartment);
       setIsGeneratingReport(false);
       
       // Show success message
       toast({
         title: "Report Generated",
-        description: `Report generated with ${filteredData.length} noise complaints`,
+        description: `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} report generated with ${filteredData.length} noise complaints`,
       });
     }, 1000); // Simulate loading time
   };
@@ -814,7 +867,9 @@ const AdminPortal: React.FC = () => {
       minDecibel: 0,
       maxDecibel: 120,
       statuses: [],
-      includeCharts: true
+      includeCharts: true,
+      includeLocationData: true,
+      includeSummaryStats: true
     });
   };
 
@@ -2898,292 +2953,749 @@ const AdminPortal: React.FC = () => {
       
       {/* Dialogs and other modals will be kept */}
       
-      {/* Report Generator Dialog */}
+      {/* Report Generator Dialog - Completely Redesigned */}
       <Dialog open={showReportGenerator} onOpenChange={setShowReportGenerator}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Generate Noise Report</DialogTitle>
-            <DialogDescription>
-              Customize and generate reports for various departments
+        <DialogContent className="max-w-7xl max-h-[90vh] flex flex-col p-0 gap-0 bg-background">
+          <div className="sticky top-0 z-[100] bg-background border-b px-6 py-4">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl">Analytics Report Builder</DialogTitle>
+              <Button variant="ghost" size="icon" onClick={() => setShowReportGenerator(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <DialogDescription className="mt-1">
+              Create customized analytics reports for noise pollution data
             </DialogDescription>
-          </DialogHeader>
+          </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-1 space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Report Type</h3>
-                <div className="grid grid-cols-1 gap-2">
-                  <Button 
-                    variant={reportType === "summary" ? "default" : "outline"} 
-                    className="justify-start"
-                    onClick={() => setReportType("summary")}
-                  >
-                    <BarChart2 className="h-4 w-4 mr-2" />
-                    Summary Report
-                  </Button>
-                  <Button 
-                    variant={reportType === "detailed" ? "default" : "outline"} 
-                    className="justify-start"
-                    onClick={() => setReportType("detailed")}
-                  >
-                    <ActivityIcon className="h-4 w-4 mr-2" />
-                    Detailed Analysis
-                  </Button>
-                  <Button 
-                    variant={reportType === "custom" ? "default" : "outline"} 
-                    className="justify-start"
-                    onClick={() => setReportType("custom")}
-                  >
-                    <Filter className="h-4 w-4 mr-2" />
-                    Custom Report
-                  </Button>
+          <div className="grid grid-cols-12 h-full overflow-hidden">
+            {/* Left Sidebar - Controls */}
+            <div className="col-span-12 md:col-span-3 border-r overflow-y-auto p-4 max-h-[calc(90vh-80px)]">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h3 className="font-medium">Report Type</h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button 
+                      variant={reportType === "summary" ? "default" : "outline"} 
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => setReportType("summary")}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Executive Summary
+                    </Button>
+                    <Button 
+                      variant={reportType === "detailed" ? "default" : "outline"} 
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => setReportType("detailed")}
+                    >
+                      <BarChart2 className="h-4 w-4 mr-2" />
+                      Detailed Analytics
+                    </Button>
+                    <Button 
+                      variant={reportType === "custom" ? "default" : "outline"} 
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => setReportType("custom")}
+                    >
+                      <Filter className="h-4 w-4 mr-2" />
+                      Custom Report
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Filters</h3>
+                
+                <Separator />
                 
                 <div className="space-y-4">
-                  <div>
-                    <Label>Date Range</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          id="date"
-                          variant={"outline"}
-                          className={cn(
-                            "w-full md:w-[300px] justify-start text-left font-normal",
-                            !reportFilters.dateRange && "text-muted-foreground"
-                          )}
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {reportFilters.dateRange?.from ? (
-                            reportFilters.dateRange.to ? (
-                              <>
-                                {format(reportFilters.dateRange.from, "LLL dd, y")} -{" "}
-                                {format(reportFilters.dateRange.to, "LLL dd, y")}
-                              </>
-                            ) : (
-                              format(reportFilters.dateRange.from, "LLL dd, y")
-                            )
-                          ) : (
-                            <span>Select date range</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <div className="flex flex-col sm:flex-row">
-                          <Calendar
-                            initialFocus
-                            mode="range"
-                            defaultMonth={reportFilters.dateRange?.from}
-                            selected={reportFilters.dateRange}
-                            onSelect={(range) => setReportFilters({...reportFilters, dateRange: range})}
-                            numberOfMonths={1}
-                            className="rounded-md border"
-                          />
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                  <h3 className="font-medium">Date Filter</h3>
+                  <div className="bg-muted/50 p-3 rounded-lg report-date-filter">
+                    <div className="text-sm font-medium mb-2 text-center">
+                      {reportFilters.dateRange?.from ? (
+                        reportFilters.dateRange.to ? (
+                          <span>From {format(reportFilters.dateRange.from, "MMM dd")} to {format(reportFilters.dateRange.to, "MMM dd, yyyy")}</span>
+                        ) : (
+                          <span>Selected: {format(reportFilters.dateRange.from, "MMMM d, yyyy")}</span>
+                        )
+                      ) : (
+                        <span>Select a date range</span>
+                      )}
+                    </div>
+                    <Calendar
+                      mode="range"
+                      selected={reportFilters.dateRange}
+                      onSelect={(range) => setReportFilters({...reportFilters, dateRange: range})}
+                      numberOfMonths={1}
+                      className="w-full"
+                      showOutsideDays={false}
+                      fixedWeeks
+                      classNames={{
+                        months: "flex flex-col space-y-4",
+                        month: "space-y-4",
+                        caption: "flex justify-center relative items-center",
+                        caption_label: "text-sm font-medium",
+                        nav: "flex items-center space-x-1",
+                        nav_button: "h-7 w-7 bg-transparent p-0 opacity-70 hover:opacity-100",
+                        nav_button_previous: "absolute left-1",
+                        nav_button_next: "absolute right-1",
+                        table: "w-full border-collapse",
+                        head_row: "flex",
+                        head_cell: "text-muted-foreground w-9 font-normal text-[0.8rem]",
+                        row: "flex w-full",
+                        cell: "text-center text-sm relative p-0 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                        day: "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
+                        day_range_end: "day-range-end",
+                        day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                        day_today: "bg-accent/50 text-accent-foreground",
+                        day_outside: "text-muted-foreground opacity-50",
+                        day_disabled: "text-muted-foreground opacity-50",
+                        day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+                        day_hidden: "invisible",
+                        caption_dropdowns: "flex justify-center space-x-2 py-2 text-sm",
+                      }}
+                    />
                   </div>
                   
-                  <div>
-                    <Label>Noise Types</Label>
-                    <Select onValueChange={(value) => {
-                      if (value === "all") {
-                        setReportFilters({...reportFilters, noiseTypes: []})
-                      } else if (reportFilters.noiseTypes.includes(value)) {
-                        setReportFilters({...reportFilters, noiseTypes: reportFilters.noiseTypes.filter(t => t !== value)})
-                      } else {
-                        setReportFilters({...reportFilters, noiseTypes: [...reportFilters.noiseTypes, value]})
-                      }
-                    }}>
-                      <SelectTrigger className="w-full mt-1">
-                        <SelectValue placeholder={`${reportFilters.noiseTypes.length === 0 ? 'All' : reportFilters.noiseTypes.length} selected`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="Traffic">Traffic</SelectItem>
-                        <SelectItem value="Construction">Construction</SelectItem>
-                        <SelectItem value="Industrial">Industrial</SelectItem>
-                        <SelectItem value="Music">Music & Events</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        // Set to last 7 days
+                        const today = new Date();
+                        const sevenDaysAgo = new Date();
+                        sevenDaysAgo.setDate(today.getDate() - 7);
+                        setReportFilters({
+                          ...reportFilters,
+                          dateRange: {
+                            from: sevenDaysAgo,
+                            to: today
+                          }
+                        });
+                      }}
+                    >
+                      Last 7 days
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Clear date range
+                        setReportFilters({
+                          ...reportFilters,
+                          dateRange: undefined
+                        });
+                      }}
+                    >
+                      Clear
+                    </Button>
                   </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-3">
+                  <h3 className="font-medium">Noise Types</h3>
                   
-                  <div>
-                    <Label>Decibel Range ({reportFilters.minDecibel} - {reportFilters.maxDecibel} dB)</Label>
-                    <div className="pt-4 px-1">
-                      <Slider 
-                        value={[reportFilters.minDecibel, reportFilters.maxDecibel]} 
-                        max={120} 
-                        step={5}
-                        onValueChange={(value) => {
-                          if (Array.isArray(value) && value.length === 2) {
+                  <div className="space-y-2">
+                    {["Traffic", "Construction", "Industrial", "Music", "Other"].map(type => (
+                      <div key={type} className="flex items-center">
+                        <Checkbox 
+                          id={`type-${type}`}
+                          checked={reportFilters.noiseTypes.includes(type)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setReportFilters({
+                                ...reportFilters, 
+                                noiseTypes: [...reportFilters.noiseTypes, type]
+                              });
+                            } else {
+                              setReportFilters({
+                                ...reportFilters, 
+                                noiseTypes: reportFilters.noiseTypes.filter(t => t !== type)
+                              });
+                            }
+                          }}
+                        />
+                        <label htmlFor={`type-${type}`} className="ml-2 text-sm cursor-pointer">
+                          {type}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-3">
+                  <h3 className="font-medium">Noise Level</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>{reportFilters.minDecibel} dB</span>
+                      <span>{reportFilters.maxDecibel} dB</span>
+                    </div>
+                    <Slider 
+                      value={[reportFilters.minDecibel, reportFilters.maxDecibel]} 
+                      max={120} 
+                      step={5}
+                      onValueChange={(value) => {
+                        if (Array.isArray(value) && value.length === 2) {
+                          setReportFilters({
+                            ...reportFilters, 
+                            minDecibel: value[0], 
+                            maxDecibel: value[1]
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-3">
+                  <h3 className="font-medium">Report Content</h3>
+                  
+                  <div className="space-y-2">
+                    {[
+                      { id: "includeCharts", label: "Charts & Graphs" },
+                      { id: "includeLocationData", label: "Location Data" },
+                      { id: "includeSummaryStats", label: "Summary Statistics" },
+                    ].map(item => (
+                      <div key={item.id} className="flex items-center">
+                        <Checkbox 
+                          id={item.id}
+                          checked={reportFilters[item.id]}
+                          onCheckedChange={(checked) => {
                             setReportFilters({
                               ...reportFilters, 
-                              minDecibel: value[0], 
-                              maxDecibel: value[1]
-                            })
-                          }
-                        }}
-                      />
-                    </div>
+                              [item.id]: !!checked
+                            });
+                          }}
+                        />
+                        <label htmlFor={item.id} className="ml-2 text-sm cursor-pointer">
+                          {item.label}
+                        </label>
+                      </div>
+                    ))}
                   </div>
+                </div>
+                
+                <div className="pt-4">
+                  <Button 
+                    onClick={generateReport} 
+                    disabled={isGeneratingReport}
+                    className="w-full"
+                  >
+                    {isGeneratingReport ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Generate Report
+                      </>
+                    )}
+                  </Button>
                   
-                  <div>
-                    <Label>Status</Label>
-                    <Select onValueChange={(value) => {
-                      if (value === "all") {
-                        setReportFilters({...reportFilters, statuses: []})
-                      } else if (reportFilters.statuses.includes(value)) {
-                        setReportFilters({...reportFilters, statuses: reportFilters.statuses.filter(s => s !== value)})
-                      } else {
-                        setReportFilters({...reportFilters, statuses: [...reportFilters.statuses, value]})
-                      }
-                    }}>
-                      <SelectTrigger className="w-full mt-1">
-                        <SelectValue placeholder={`${reportFilters.statuses.length === 0 ? 'All' : reportFilters.statuses.length} selected`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="unresolved">Unresolved</SelectItem>
-                        <SelectItem value="in-progress">In Progress</SelectItem>
-                        <SelectItem value="resolved">Resolved</SelectItem>
-                        <SelectItem value="escalated">Escalated</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeCharts" 
-                      checked={reportFilters.includeCharts} 
-                      onCheckedChange={(checked) => 
-                        setReportFilters({...reportFilters, includeCharts: !!checked})
-                      }
-                    />
-                    <label htmlFor="includeCharts">Include Charts & Graphs</label>
-                  </div>
+                  <Button 
+                    variant="outline"
+                    onClick={resetReportFilters}
+                    className="w-full mt-2"
+                  >
+                    Reset Filters
+                  </Button>
                 </div>
               </div>
             </div>
             
-            <div className="md:col-span-2 border rounded-lg p-4 space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">Report Preview</h3>
-                <Badge variant="outline">{reportType}</Badge>
-              </div>
-              
-              {isGeneratingReport ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                  <p className="text-muted-foreground">Generating report...</p>
+            {/* Right Content - Preview */}
+            <div className="col-span-12 md:col-span-9 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Report Preview</h2>
+                  <Badge variant="outline">{reportType.charAt(0).toUpperCase() + reportType.slice(1)}</Badge>
                 </div>
-              ) : reportData.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <FileText className="h-8 w-8 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">Click 'Generate Report' to preview</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium">Date Range</p>
-                      <p className="text-sm text-muted-foreground">
-                        {reportFilters.dateRange?.from 
-                          ? `${format(reportFilters.dateRange.from, "LLL dd, y")} - ${format(reportFilters.dateRange.to, "LLL dd, y")}`
-                          : 'All dates'
-                        }
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Reports</p>
-                      <p className="text-sm text-muted-foreground">{reportData.length} total</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Noise Types</p>
-                      <p className="text-sm text-muted-foreground">
-                        {reportFilters.noiseTypes.length > 0 
-                          ? reportFilters.noiseTypes.join(', ')
-                          : 'All types'
-                        }
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Decibel Range</p>
-                      <p className="text-sm text-muted-foreground">
-                        {reportFilters.minDecibel}dB - {reportFilters.maxDecibel}dB
-                      </p>
-                    </div>
+                
+                {isGeneratingReport ? (
+                  <div className="flex flex-col items-center justify-center h-[40vh]">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                    <p className="text-muted-foreground">Generating advanced analytics report...</p>
                   </div>
-                  
-                  <Separator />
-                  
-                  <div>
-                    <p className="text-sm font-medium mb-2">Department Distribution</p>
-                    <div className="space-y-2">
-                      {Object.entries(departmentReports).map(([department, reports]) => (
-                        <div key={department} className="flex justify-between items-center">
-                          <p className="text-sm">{department}</p>
-                          <Badge variant="outline">{reports.length} reports</Badge>
+                ) : reportData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-[40vh] bg-muted/30 rounded-lg border border-dashed">
+                    <FileBarChart2 className="h-16 w-16 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No report data generated yet</p>
+                    <p className="text-sm text-muted-foreground mb-4">Set your filters and generate a report</p>
+                    <Button onClick={generateReport}>Generate Report</Button>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {/* Report Header */}
+                    <div className="border-b pb-4">
+                      <h1 className="text-2xl font-bold">
+                        {reportType === "summary" 
+                          ? "Noise Pollution Executive Summary" 
+                          : reportType === "detailed"
+                          ? "Comprehensive Noise Analytics" 
+                          : "Custom Noise Analysis Report"}
+                      </h1>
+                      <p className="text-muted-foreground mt-1">
+                        Based on {reportData.length} noise reports
+                        {reportFilters.dateRange?.from && (
+                          <> from {format(reportFilters.dateRange.from, "MMMM d, yyyy")}</>
+                        )}
+                        {reportFilters.dateRange?.to && (
+                          <> to {format(reportFilters.dateRange.to, "MMMM d, yyyy")}</>
+                        )}
+                      </p>
+                    </div>
+                    
+                    {/* Key Metrics */}
+                    <div className="space-y-4">
+                      <h2 className="text-xl font-semibold">Key Metrics</h2>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <Card className="p-4">
+                          <h3 className="text-sm font-medium text-muted-foreground">Total Reports</h3>
+                          <p className="text-3xl font-bold">{reportData.length}</p>
+                          {reportData.length > 50 && (
+                            <p className="text-xs text-green-600 mt-1">High sample confidence</p>
+                          )}
+                        </Card>
+                        
+                        <Card className="p-4">
+                          <h3 className="text-sm font-medium text-muted-foreground">Average Noise</h3>
+                          <p className="text-3xl font-bold">
+                            {Math.round(reportData.reduce((sum, r) => sum + r.decibel_level, 0) / reportData.length)} dB
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {Math.round(reportData.reduce((sum, r) => sum + r.decibel_level, 0) / reportData.length) > 75 ? 
+                              "Concerning Level" : "Moderate Level"}
+                          </p>
+                        </Card>
+                        
+                        <Card className="p-4">
+                          <h3 className="text-sm font-medium text-muted-foreground">Peak Noise</h3>
+                          <p className="text-3xl font-bold">
+                            {Math.max(...reportData.map(r => r.decibel_level))} dB
+                          </p>
+                          <p className="text-xs text-red-600 mt-1">
+                            {Math.max(...reportData.map(r => r.decibel_level)) > 85 ? 
+                              "Hazardous Level" : "High Level"}
+                          </p>
+                        </Card>
+                        
+                        <Card className="p-4">
+                          <h3 className="text-sm font-medium text-muted-foreground">High Risk Cases</h3>
+                          <p className="text-3xl font-bold">
+                            {reportData.filter(r => r.decibel_level >= 85).length}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {((reportData.filter(r => r.decibel_level >= 85).length / reportData.length) * 100).toFixed(1)}% of total
+                          </p>
+                        </Card>
+                      </div>
+                    </div>
+                    
+                    {/* Analytics Charts - Only shown for detailed reports */}
+                    {reportFilters.includeCharts && (
+                      <div className="space-y-4">
+                        <h2 className="text-xl font-semibold">Noise Analysis</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Time-series chart */}
+                          <Card className="p-4">
+                            <h3 className="text-sm font-medium mb-4">Noise Level Over Time</h3>
+                            <div className="h-[300px]">
+                              <NoiseTimeSeriesChart
+                                data={reportData.map((report) => {
+                                  const date = new Date(report.created_at);
+                                  const timeStr = `${date.getMonth()+1}/${date.getDate()}`;
+                                  
+                                  return {
+                                    time: timeStr,
+                                    avgLevel: report.decibel_level,
+                                    maxLevel: report.decibel_level + 5,
+                                    minLevel: Math.max(report.decibel_level - 8, 0)
+                                  };
+                                })}
+                                height={300}
+                              />
+                            </div>
+                          </Card>
+                          
+                          {/* Distribution by noise type */}
+                          <Card className="p-4">
+                            <h3 className="text-sm font-medium mb-4">Noise Type Distribution</h3>
+                            <div className="h-[300px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={Object.entries(
+                                      reportData.reduce((acc, r) => {
+                                        acc[r.noise_type] = (acc[r.noise_type] || 0) + 1;
+                                        return acc;
+                                      }, {} as Record<string, number>)
+                                    ).map(([type, count]) => ({
+                                      name: type,
+                                      value: count
+                                    }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={70}
+                                    outerRadius={100}
+                                    paddingAngle={2}
+                                    dataKey="value"
+                                  >
+                                    {Object.entries(
+                                      reportData.reduce((acc, r) => {
+                                        acc[r.noise_type] = (acc[r.noise_type] || 0) + 1;
+                                        return acc;
+                                      }, {} as Record<string, number>)
+                                    ).map((_, index) => {
+                                      const COLORS = ['#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
+                                      return <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />;
+                                    })}
+                                  </Pie>
+                                  <Tooltip
+                                    formatter={(value, name) => [`${value} reports`, name]}
+                                    contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                                  />
+                                  <Legend />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </Card>
+                          
+                          {/* Daily Trends by Hour - Only for detailed reports */}
+                          {reportType === "detailed" && (
+                            <Card className="p-4 col-span-1 md:col-span-2">
+                              <h3 className="text-sm font-medium mb-4">Hourly Noise Distribution</h3>
+                              <div className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart
+                                    data={[...Array(24)].map((_, hour) => {
+                                      const hourReports = reportData.filter(r => {
+                                        const date = new Date(r.created_at);
+                                        return date.getHours() === hour;
+                                      });
+                                      
+                                      return {
+                                        hour: `${hour}:00`,
+                                        count: hourReports.length,
+                                        avgDb: hourReports.length > 0
+                                          ? Math.round(hourReports.reduce((sum, r) => sum + r.decibel_level, 0) / hourReports.length)
+                                          : 0
+                                      };
+                                    })}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                                    <XAxis dataKey="hour" />
+                                    <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
+                                    <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+                                    <Tooltip
+                                      contentStyle={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}
+                                      formatter={(value, name) => [
+                                        value, 
+                                        name === "count" ? "Reports" : "Avg. Decibels"
+                                      ]}
+                                    />
+                                    <Legend />
+                                    <Bar yAxisId="left" dataKey="count" name="Number of Reports" fill="#8884d8" />
+                                    <Bar yAxisId="right" dataKey="avgDb" name="Avg. Decibel Level" fill="#82ca9d" />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </Card>
+                          )}
                         </div>
-                      ))}
+                      </div>
+                    )}
+                    
+                    {/* Departmental Analysis - Only for detailed reports */}
+                    {reportType === "detailed" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-xl font-semibold">Departmental Analysis</h2>
+                          <Select 
+                            value={selectedDepartment || "all"}
+                            onValueChange={(value) => setSelectedDepartment(value === "all" ? null : value)}
+                          >
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="All Departments" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Departments</SelectItem>
+                              {Object.keys(departmentReports).map(dept => (
+                                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {Object.entries(departmentReports)
+                            .filter(([dept]) => !selectedDepartment || dept === selectedDepartment)
+                            .map(([department, reports]) => (
+                            <Card key={department} className="overflow-hidden">
+                              <CardHeader className="pb-2">
+                                <div className="flex justify-between items-center">
+                                  <CardTitle className="text-base flex items-center">
+                                    {department === "Traffic Department" && <Car className="h-4 w-4 mr-2" />}
+                                    {department === "Construction Department" && <HardHat className="h-4 w-4 mr-2" />}
+                                    {department === "Industrial Department" && <Factory className="h-4 w-4 mr-2" />}
+                                    {department === "Music & Events Department" && <Music className="h-4 w-4 mr-2" />}
+                                    {department === "Environment Department" && <Leaf className="h-4 w-4 mr-2" />}
+                                    {department}
+                                  </CardTitle>
+                                  <Badge variant="outline">{reports.length}</Badge>
+                                </div>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                      <p className="text-xs text-muted-foreground">Average Level</p>
+                                      <p className="text-lg font-semibold">
+                                        {reports.length > 0 
+                                          ? Math.round(reports.reduce((sum, r) => sum + r.decibel_level, 0) / reports.length)
+                                          : 0} dB
+                                      </p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-xs text-muted-foreground">Risk Level</p>
+                                      <p className="text-lg font-semibold">
+                                        {reports.length > 0 
+                                          ? Math.round(reports.reduce((sum, r) => sum + r.decibel_level, 0) / reports.length) > 75
+                                            ? "High" 
+                                            : "Moderate"
+                                          : "N/A"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="pt-2">
+                                    <p className="text-xs text-muted-foreground mb-1">Noise Level Distribution</p>
+                                    <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+                                      {reports.length > 0 && (
+                                        <>
+                                          <div 
+                                            className="bg-green-500 h-full"
+                                            style={{ 
+                                              width: `${(reports.filter(r => r.decibel_level < 65).length / reports.length) * 100}%` 
+                                            }}
+                                          />
+                                          <div 
+                                            className="bg-yellow-500 h-full"
+                                            style={{ 
+                                              width: `${(reports.filter(r => r.decibel_level >= 65 && r.decibel_level < 85).length / reports.length) * 100}%` 
+                                            }}
+                                          />
+                                          <div 
+                                            className="bg-red-500 h-full"
+                                            style={{ 
+                                              width: `${(reports.filter(r => r.decibel_level >= 85).length / reports.length) * 100}%` 
+                                            }}
+                                          />
+                                        </>
+                                      )}
+                                    </div>
+                                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                                      <span>Low</span>
+                                      <span>Medium</span>
+                                      <span>High</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </CardContent>
+                              <CardFooter className="border-t p-3">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="w-full"
+                                  onClick={() => {
+                                    // Forward report to department action
+                                    toast({
+                                      title: "Report Forwarded",
+                                      description: `Report sent to ${department}`,
+                                    });
+                                  }}
+                                >
+                                  <Share2 className="h-3.5 w-3.5 mr-2" />
+                                  Forward to Department
+                                </Button>
+                              </CardFooter>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Recommendations - Show for all report types */}
+                    <div className="space-y-4">
+                      <h2 className="text-xl font-semibold">Recommendations</h2>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="p-4 border-l-4 border-l-blue-500">
+                          <h3 className="font-medium">Monitoring Frequency</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {reportData.length < 30 
+                              ? "Increase monitoring frequency in areas with high noise levels to gather more data."
+                              : "Current monitoring frequency is adequate based on sample size."}
+                          </p>
+                        </Card>
+                        
+                        <Card className="p-4 border-l-4 border-l-purple-500">
+                          <h3 className="font-medium">Enforcement Focus</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Focus enforcement on {
+                              Object.entries(
+                                reportData.reduce((acc, r) => {
+                                  acc[r.noise_type] = (acc[r.noise_type] || 0) + 1;
+                                  return acc;
+                                }, {} as Record<string, number>)
+                              ).sort((a, b) => b[1] - a[1])[0]?.[0] || "common"
+                            } noise sources which constitute the majority of complaints.
+                          </p>
+                        </Card>
+                        
+                        <Card className="p-4 border-l-4 border-l-amber-500">
+                          <h3 className="font-medium">Time-based Interventions</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {reportType === "detailed" 
+                              ? `Schedule enforcement during peak noise hours (${
+                                [...Array(24)].map((_, hour) => {
+                                  const hourReports = reportData.filter(r => {
+                                    const date = new Date(r.created_at);
+                                    return date.getHours() === hour;
+                                  });
+                                  return { hour, count: hourReports.length };
+                                }).sort((a, b) => b.count - a.count)[0]?.hour || 0
+                              }:00).`
+                              : "Consider time-based noise regulations based on daily patterns."}
+                          </p>
+                        </Card>
+                        
+                        <Card className="p-4 border-l-4 border-l-green-500">
+                          <h3 className="font-medium">Public Awareness</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Launch targeted awareness campaigns about noise pollution health impacts in high-risk areas.
+                          </p>
+                        </Card>
+                      </div>
+                    </div>
+                    
+                    {/* Export Actions */}
+                    <div className="flex justify-end space-x-2 pt-6 border-t">
+                      <Button variant="outline" size="sm" onClick={() => exportData('pdf')}>
+                        <FileIcon className="h-4 w-4 mr-2" />
+                        Export as PDF
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => exportData('csv')}>
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Export Raw Data
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={() => {
+                          setShowReportGenerator(false);
+                          toast({
+                            title: "Report Saved",
+                            description: "Report has been saved to your dashboard.",
+                          });
+                        }}
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Report
+                      </Button>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-          
-          <DialogFooter className="flex justify-between items-center">
-            <Button 
-              variant="outline" 
-              onClick={resetReportFilters}
-            >
-              Reset Filters
-            </Button>
-            <div className="flex gap-2">
-              <Button 
-                variant="secondary"
-                onClick={() => {
-                  if (reportData.length > 0) {
-                    // Switch to the reports tab to view the generated report
-                    setActiveTab("reportGenerator");
-                    setShowReportGenerator(false);
-                  }
-                }}
-                disabled={reportData.length === 0}
-              >
-                View Full Report
-              </Button>
-              <Button 
-                onClick={generateReport} 
-                disabled={isGeneratingReport}
-              >
-                {isGeneratingReport ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Generate Report
-                  </>
-                )}
-              </Button>
-            </div>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
       
       {/* Forward Report Dialog */}
       <Dialog open={showForwardDialog} onOpenChange={setShowForwardDialog}>
-        {/* Existing dialog content */}
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Forward to Department</DialogTitle>
+            <DialogDescription>
+              Send this noise report to the appropriate department for action
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="department">Select Department</Label>
+              <Select 
+                value={selectedDepartment} 
+                onValueChange={setSelectedDepartment}
+              >
+                <SelectTrigger id="department">
+                  <SelectValue placeholder="Select a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Traffic Department">Traffic Department</SelectItem>
+                  <SelectItem value="Construction Department">Construction Department</SelectItem>
+                  <SelectItem value="Industrial Department">Industrial Department</SelectItem>
+                  <SelectItem value="Music & Events Department">Music & Events Department</SelectItem>
+                  <SelectItem value="Environment Department">Environment Department</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="additionalNotes">Additional Notes (Optional)</Label>
+              <Textarea 
+                id="additionalNotes" 
+                placeholder="Add any context or specific instructions for the department"
+              />
+            </div>
+            
+            {selectedReport && (
+              <div className="border rounded-md p-3 bg-muted/30 space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-medium">Report Summary</h4>
+                  <Badge variant="outline">{selectedReport.noise_type}</Badge>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p>Location: {selectedReport.address || 'No address provided'}</p>
+                  <p>Decibel Level: {selectedReport.decibel_level} dB</p>
+                  <p>Date: {new Date(selectedReport.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowForwardDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={forwardReportToDepartment} 
+              disabled={!selectedDepartment || forwardingReport}
+            >
+              {forwardingReport ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-4 w-4" />
+                  Forward Report
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </motion.div>
   );

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import {
   Area,
@@ -36,12 +35,14 @@ export interface NoiseTimeSeriesChartProps {
   data: NoiseTimeSeriesData[];
   title?: string;
   description?: string;
+  height?: number | string;
 }
 
 const NoiseTimeSeriesChart = ({
   data,
   title = "Noise Level Over Time",
-  description = "Average, maximum and minimum noise levels tracked over time"
+  description = "Average, maximum and minimum noise levels tracked over time",
+  height = 350
 }: NoiseTimeSeriesChartProps) => {
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
 
@@ -52,7 +53,7 @@ const NoiseTimeSeriesChart = ({
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent className="h-[350px] flex items-center justify-center">
+        <CardContent className="flex items-center justify-center" style={{ height: typeof height === 'number' ? `${height}px` : height }}>
           <p className="text-muted-foreground">No time series data available</p>
         </CardContent>
       </Card>
@@ -94,7 +95,7 @@ const NoiseTimeSeriesChart = ({
         </Tabs>
       </CardHeader>
       <CardContent className="pt-4">
-        <div className="h-[350px] w-full">
+        <div style={{ height: typeof height === 'number' ? `${height}px` : height, width: '100%' }}>
           {chartType === 'area' ? (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart

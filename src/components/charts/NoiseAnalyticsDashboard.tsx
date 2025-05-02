@@ -234,6 +234,10 @@ export const NoiseAnalyticsDashboard: React.FC<NoiseAnalyticsDashboardProps> = (
               <Skeleton className="h-full" />
             ) : error ? (
               <p className="text-destructive">Error loading chart data.</p>
+            ) : filteredData.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-muted-foreground">No data available for the selected filters.</p>
+              </div>
             ) : (
               <NoisePieChart data={filteredData} title="" />
             )}
@@ -252,6 +256,10 @@ export const NoiseAnalyticsDashboard: React.FC<NoiseAnalyticsDashboardProps> = (
               <Skeleton className="h-full" />
             ) : error ? (
               <p className="text-destructive">Error loading chart data.</p>
+            ) : filteredData.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-muted-foreground">No data available for the selected filters.</p>
+              </div>
             ) : (
               <NoiseBarChart data={filteredData} title="" />
             )}
@@ -270,10 +278,20 @@ export const NoiseAnalyticsDashboard: React.FC<NoiseAnalyticsDashboardProps> = (
       </CardHeader>
       <CardContent className="pt-0 overflow-hidden">
         <div className="h-[350px] md:h-[400px]">
-          <NoiseHeatmapChart 
-            data={filteredData} 
-            title=""
-          />
+          {isLoading ? (
+            <Skeleton className="h-full" />
+          ) : error ? (
+            <p className="text-destructive">Error loading chart data.</p>
+          ) : filteredData.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-muted-foreground">No data available for the selected filters.</p>
+            </div>
+          ) : (
+            <NoiseHeatmapChart 
+              data={filteredData} 
+              title=""
+            />
+          )}
         </div>
       </CardContent>
     </Card>

@@ -10,6 +10,7 @@ import { checkDatabaseConnection } from "./integrations/supabase/client";
 import LoadingLogo from "./components/LoadingLogo";
 import { AnimatePresence } from "framer-motion";
 import AIChatWidget from "./components/AIChatWidget";
+import NoiseAwarenessPopup from "./components/NoiseAwarenessPopup";
 
 // Import theme styles
 import "./styles/theme.css";
@@ -125,6 +126,7 @@ const App = () => {
               </AnimatePresence>
             </MainLayout>
             {/* <AIChatWidget /> */}
+            <NoiseAwarenessPopup />
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>

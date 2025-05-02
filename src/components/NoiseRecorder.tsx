@@ -31,65 +31,144 @@ import {
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { env, debug } from "@/lib/env";
+import { useNavigate } from "react-router-dom";
 
 // Set Mapbox token from environment with error handling
 const MAPBOX_TOKEN = env.MAPBOX_ACCESS_TOKEN;
+// Special token specifically for the location confirmation map
+const LOCATION_MAP_TOKEN = "pk.eyJ1Ijoic2hyZXlhc2gwNDUiLCJhIjoiY21hNGI5YXhzMDNwcTJqczYyMnR3OWdkcSJ9.aVpyfgys6f-h27ftG_63Zw";
 let mapboxInitialized = false;
 
+// Initialize Mapbox immediately
 try {
   if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'pk.your-mapbox-token') {
-    console.warn("⚠️ Mapbox token is missing or using default value. Location features will be limited.");
+    console.warn("⚠️ Mapbox token is missing or using default value. Using fallback token.");
+    mapboxgl.accessToken = LOCATION_MAP_TOKEN;
   } else {
     mapboxgl.accessToken = MAPBOX_TOKEN;
-    mapboxInitialized = true;
-    debug("Mapbox initialized successfully");
   }
+  
+  mapboxInitialized = true;
+  debug("Mapbox initialized successfully with token: " + mapboxgl.accessToken);
+  
+  // Don't use dummy container preloading as it might cause issues
 } catch (error) {
   console.error("Failed to initialize Mapbox:", error);
+  // Try with fallback token
+  try {
+    mapboxgl.accessToken = LOCATION_MAP_TOKEN;
+    mapboxInitialized = true;
+    debug("Mapbox initialized with fallback token");
+  } catch (fallbackError) {
+    console.error("Failed to initialize Mapbox with fallback token:", fallbackError);
+  }
+}
+
+// Also preload resources for the location confirmation map with the dedicated token
+try {
+  // Create a dummy map container to initialize mapbox resources with the location map token
+  const locationDummyContainer = document.createElement('div');
+  locationDummyContainer.style.position = 'absolute';
+  locationDummyContainer.style.visibility = 'hidden';
+  locationDummyContainer.style.height = '1px';
+  locationDummyContainer.style.width = '1px';
+  
+  // Append to body only briefly to trigger resource loading
+  document.body.appendChild(locationDummyContainer);
+  
+  // Use the dedicated token for this preload
+  const originalToken = mapboxgl.accessToken;
+  mapboxgl.accessToken = LOCATION_MAP_TOKEN;
+  
+  try {
+    // Create and immediately dispose of a map to preload resources
+    const preloadLocationMap = new mapboxgl.Map({
+      container: locationDummyContainer,
+      style: 'mapbox://styles/mapbox/streets-v11',
+      zoom: 0,
+      interactive: false
+    });
+    
+    // Dispose after a short delay to allow resource loading
+    setTimeout(() => {
+      preloadLocationMap.remove();
+      document.body.removeChild(locationDummyContainer);
+      // Restore the original token
+      mapboxgl.accessToken = originalToken;
+    }, 500);
+  } catch (preloadError) {
+    // Ignore preload errors, just clean up
+    document.body.removeChild(locationDummyContainer);
+    // Restore the original token
+    mapboxgl.accessToken = originalToken;
+  }
+} catch (locationMapError) {
+  console.error("Failed to preload location map resources:", locationMapError);
 }
 
 // Custom GeolocationControl that handles errors gracefully
 function createMapWithGeolocation(container, initialLocation) {
-  // If Mapbox failed to initialize, return a simple message
+  // If Mapbox failed to initialize, try again
   if (!mapboxInitialized) {
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md';
-    errorDiv.innerHTML = 'Map unavailable - check Mapbox token configuration';
-    container.appendChild(errorDiv);
-    return null;
+    try {
+      mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN;
+      mapboxInitialized = true;
+      debug("Mapbox re-initialized in createMapWithGeolocation");
+    } catch (error) {
+      console.error("Failed to initialize Mapbox:", error);
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md';
+      errorDiv.innerHTML = 'Map unavailable - check Mapbox token configuration';
+      if (container) container.appendChild(errorDiv);
+      return null;
+    }
   }
 
   try {
+    // Ensure container is ready
+    if (!container) {
+      console.error("Map container is not available");
+      return null;
+    }
+
+    // Create map instance
     const map = new mapboxgl.Map({
       container: container,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [initialLocation.longitude, initialLocation.latitude],
-      zoom: 15,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [initialLocation?.longitude || 73.8567, initialLocation?.latitude || 18.5204], // Default to Pune if no location
+      zoom: initialLocation ? 15 : 12,
       attributionControl: false,
     });
     
+    // Add navigation controls
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
     
     // Add geolocation with error handling
-    const geolocateControl = new mapboxgl.GeolocateControl({
-      positionOptions: {
-        enableHighAccuracy: true
-      },
-      trackUserLocation: true,
-      showUserLocation: true,
-      showAccuracyCircle: true,
-      fitBoundsOptions: {
-        maxZoom: 15
+    if (map) {
+      const geolocateControl = new mapboxgl.GeolocateControl({
+        positionOptions: {
+          enableHighAccuracy: true
+        },
+        trackUserLocation: true,
+        showUserLocation: true,
+        showAccuracyCircle: true,
+      });
+      
+      map.addControl(geolocateControl);
+      
+      // Handle geolocation errors silently
+      geolocateControl.on('error', (err) => {
+        console.warn('Geolocation error in NoiseRecorder:', err);
+      });
+    }
+    
+    // Force resize after map initialization to ensure proper rendering
+    setTimeout(() => {
+      if (map) {
+        map.resize();
+        debug("Map resize called in createMapWithGeolocation");
       }
-    });
-    
-    map.addControl(geolocateControl);
-    
-    // Handle geolocation errors silently
-    geolocateControl.on('error', (err) => {
-      console.warn('Geolocation error in NoiseRecorder:', err);
-      // We don't show an error message to the user
-    });
+    }, 300);
     
     return map;
   } catch (error) {
@@ -97,7 +176,7 @@ function createMapWithGeolocation(container, initialLocation) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md';
     errorDiv.innerHTML = 'Map failed to load - please try again later';
-    container.appendChild(errorDiv);
+    if (container) container.appendChild(errorDiv);
     return null;
   }
 }
@@ -120,6 +199,7 @@ const NoiseRecorder = () => {
   const [permissionStep, setPermissionStep] = useState<"mic" | "location">("mic");
   const [showLocationError, setShowLocationError] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   const [animationLevel, setAnimationLevel] = useState(0);
   
@@ -165,60 +245,127 @@ const NoiseRecorder = () => {
         return null;
       }
 
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve, 
-          (posError) => {
-            console.error("Location error:", posError.message);
-            
-            // Handle specific geolocation errors
-            if (posError.code === 1) { // Permission denied
-              toast({
-                title: "Location Permission Denied",
-                description: "You can continue without location or enable location in your browser settings and try again.",
-                variant: "destructive",
-              });
-              setLocationStatus("skipped");
-              setShowLocationError(false);
-            } else if (posError.code === 2) { // Position unavailable
-              toast({
-                title: "Location Unavailable",
-                description: "Unable to determine your location. Check your connection or try again later.",
-                variant: "destructive",
-              });
-              setLocationStatus("error");
-              setShowLocationError(true);
-            } else if (posError.code === 3) { // Timeout
-              toast({
-                title: "Location Request Timeout",
-                description: "Location request timed out. Please try again.",
-                variant: "destructive",
-              });
-              setLocationStatus("error");
-              setShowLocationError(true);
+      // Optional secondary permissions check for Chrome and other browsers
+      // This helps identify if location permission has been granted but is being blocked
+      try {
+        const permResult = await navigator.permissions?.query({ name: 'geolocation' });
+        debug(`Geolocation permission state: ${permResult?.state}`);
+        
+        if (permResult?.state === 'denied') {
+          toast({
+            title: "Location Access Blocked",
+            description: "Your browser settings are blocking location access. Please check your browser settings.",
+            variant: "destructive",
+          });
+          setLocationStatus("skipped");
+          setShowLocationError(true);
+          return null;
+        }
+      } catch (permError) {
+        // Permissions API not supported, continue with regular geolocation
+        debug("Permissions API not supported, using standard geolocation");
+      }
+
+      // Try alternate methods if available
+      let useHighAccuracy = true;
+      let timeout = 15000;
+      
+      // First attempt with high accuracy
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          const geoWatchId = navigator.geolocation.watchPosition(
+            (position) => {
+              navigator.geolocation.clearWatch(geoWatchId);
+              resolve(position);
+            },
+            (posError) => {
+              if (posError.code === 1) { // Permission denied
+                // Let the next handler deal with it
+                reject({ handled: false, error: posError });
+              } else if (posError.code === 2 || posError.code === 3) { // Position unavailable or timeout
+                // Try again with lower accuracy in the catch block
+                reject({ handled: false, error: posError, tryAgain: true });
+              } else {
+                reject({ handled: false, error: posError });
+              }
+            },
+            {
+              enableHighAccuracy: useHighAccuracy,
+              timeout: timeout,
+              maximumAge: 0
             }
+          );
+          
+          // Clear watch after timeout to prevent resource leaks
+          setTimeout(() => {
+            navigator.geolocation.clearWatch(geoWatchId);
+          }, timeout + 1000);
+        });
+        
+        setLocation({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+        setLocationStatus("success");
+        setIsLocationMapOpen(true);
+        
+        return pos;
+      } catch (geoError: any) {
+        // If we should try again with lower accuracy
+        if (geoError?.tryAgain) {
+          debug("Retrying geolocation with lower accuracy");
+          useHighAccuracy = false;
+          timeout = 20000; // Longer timeout
+          
+          try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(
+                resolve,
+                (posError) => {
+                  console.error("Location error on retry:", posError.message);
+                  handleLocationError(posError);
+                  reject({ handled: true, error: posError });
+                },
+                {
+                  enableHighAccuracy: useHighAccuracy,
+                  timeout: timeout,
+                  maximumAge: 60000 // Allow cached position
+                }
+              );
+            });
             
-            reject({ handled: true, error: posError });
-          }, 
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
+            setLocation({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+            });
+            setLocationStatus("success");
+            setIsLocationMapOpen(true);
+            
+            return pos;
+          } catch (retryError) {
+            // Already handled by the error callback
+            return null;
           }
-        );
-      });
-      
-      setLocation({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
-      setLocationStatus("success");
-      
-      setIsLocationMapOpen(true);
-      
-      return pos;
+        } else if (!geoError?.handled) {
+          // If we haven't tried to handle this error yet
+          if (geoError?.error) {
+            handleLocationError(geoError.error);
+          } else {
+            console.error("Unexpected error in location handling:", geoError);
+            toast({
+              title: "Location Error",
+              description: "An unexpected error occurred. You can continue without location data or try again.",
+              variant: "destructive",
+            });
+            setLocationStatus("error");
+            setShowLocationError(true);
+          }
+        }
+        
+        return null;
+      }
     } catch (error: any) {
-      // Only log error if it wasn't already handled in the rejection handler
+      // Only log error if it wasn't already handled
       if (!error?.handled) {
         console.error("Unexpected error in location handling:", error);
         
@@ -232,6 +379,38 @@ const NoiseRecorder = () => {
       }
       
       return null;
+    }
+  };
+
+  // Helper function to handle location errors
+  const handleLocationError = (posError: GeolocationPositionError) => {
+    console.error("Location error:", posError.message, "Code:", posError.code);
+    
+    // Handle specific geolocation errors
+    if (posError.code === 1) { // Permission denied
+      toast({
+        title: "Location Permission Denied",
+        description: "You can continue without location or enable location in your browser settings and try again.",
+        variant: "destructive",
+      });
+      setLocationStatus("skipped");
+      setShowLocationError(true);
+    } else if (posError.code === 2) { // Position unavailable
+      toast({
+        title: "Location Unavailable",
+        description: "Unable to determine your location. Check your connection or try again later.",
+        variant: "destructive",
+      });
+      setLocationStatus("error");
+      setShowLocationError(true);
+    } else if (posError.code === 3) { // Timeout
+      toast({
+        title: "Location Request Timeout",
+        description: "Location request timed out. Please try again.",
+        variant: "destructive",
+      });
+      setLocationStatus("error");
+      setShowLocationError(true);
     }
   };
 
@@ -253,30 +432,44 @@ const NoiseRecorder = () => {
   };
 
   const handleLocationConfirmation = () => {
-    if (locationMap.current && locationMarker.current) {
-      const finalPosition = locationMarker.current.getLngLat();
-      setLocation({
-        latitude: finalPosition.lat,
-        longitude: finalPosition.lng
+    try {
+      if (locationMap.current && locationMarker.current) {
+        const finalPosition = locationMarker.current.getLngLat();
+        setLocation({
+          latitude: finalPosition.lat,
+          longitude: finalPosition.lng
+        });
+        
+        debug(`Location confirmed at ${finalPosition.lat}, ${finalPosition.lng}`);
+      } else {
+        console.warn("Map or marker not available during confirmation");
+      }
+      
+      setIsLocationMapOpen(false);
+      
+      toast({
+        title: "Location Confirmed",
+        description: "Your location has been confirmed and will be used for the noise report.",
+        variant: "default",
       });
+      
+      startRecordingWithPermissions();
+    } catch (error) {
+      console.error("Error during location confirmation:", error);
+      // Continue anyway to avoid blocking the user
+      setIsLocationMapOpen(false);
+      startRecordingWithPermissions();
     }
-    
-    setIsLocationMapOpen(false);
-    
-    toast({
-      title: "Location Confirmed",
-      description: "Your location has been confirmed and will be used for the noise report.",
-      variant: "default",
-    });
-    
-    startRecordingWithPermissions();
   };
 
   const handleLocationPermission = async () => {
+    setShowPermissionDialog(false); // Hide dialog immediately to avoid confusion
+    
     const pos = await getLocationAsync();
     
-    if (pos) {
-      setShowPermissionDialog(false);
+    if (!pos) {
+      // If getLocationAsync failed, we'll handle this in the location error dialog
+      debug("Location permission granted but couldn't get position");
     }
   };
 
@@ -411,6 +604,25 @@ const NoiseRecorder = () => {
     try {
       setIsSubmitting(true);
       
+      // Create the new report object
+      const newReport = {
+        id: `report-${Date.now()}`, // Generate a unique ID
+        latitude: location.latitude,
+        longitude: location.longitude,
+        decibel_level: decibels,
+        noise_type: noiseType,
+        notes: notes || null,
+        created_at: new Date().toISOString(),
+        address: "Pune, Maharashtra", // Default address (would be geocoded in production)
+        status: "unresolved", // Default status
+        device_info: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          timestamp: new Date().toISOString(),
+        },
+      };
+      
+      // Submit to Supabase
       const { error } = await supabase.from("noise_reports").insert({
         latitude: location.latitude,
         longitude: location.longitude,
@@ -425,9 +637,27 @@ const NoiseRecorder = () => {
       });
 
       if (error) throw error;
+      
+      // Also save to localStorage for admin portal
+      try {
+        // Get existing reports
+        const existingReportsJson = localStorage.getItem('noiseReports');
+        let existingReports = existingReportsJson ? JSON.parse(existingReportsJson) : [];
+        
+        // Add new report
+        existingReports.unshift(newReport); // Add to beginning for newest first
+        
+        // Save back to localStorage
+        localStorage.setItem('noiseReports', JSON.stringify(existingReports));
+        console.log("Report saved to localStorage for admin portal");
+      } catch (localStorageError) {
+        console.error("Error saving to localStorage:", localStorageError);
+        // Continue with submission process even if localStorage fails
+      }
 
       setShowSuccessDialog(true);
       
+      // Clear form data after a short delay
       setTimeout(() => {
         setDecibels(null);
         setNoiseType("");
@@ -510,26 +740,45 @@ const NoiseRecorder = () => {
       <Dialog open={showLocationError} onOpenChange={setShowLocationError}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Location Access Denied</DialogTitle>
+            <DialogTitle>Location Access Issue</DialogTitle>
             <DialogDescription>
-              You've denied access to your location. While location data helps us map noise pollution accurately, you can continue without it.
+              {locationStatus === "skipped" 
+                ? "Location access wasn't available. This can happen even when you've granted permissions in your browser."
+                : "We couldn't access your location. This might be due to browser settings or permissions."}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center space-x-2 mb-4">
-            <AlertTriangle className="h-6 w-6 text-yellow-500" />
-            <p className="text-sm text-muted-foreground">
-              Without location data, your noise report won't appear on the map, but we'll still collect the noise level data.
-            </p>
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex items-center space-x-2 mb-2">
+              <AlertTriangle className="h-6 w-6 text-yellow-500" />
+              <p className="text-sm text-muted-foreground">
+                Without location data, your noise report won't appear on the map, but we'll still collect the noise level data.
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md">
+              <h4 className="font-medium text-sm mb-2">Troubleshooting tips:</h4>
+              <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
+                <li>Check that location is enabled in your browser settings</li>
+                <li>Some browsers require HTTPS for location access</li>
+                <li>Try a different browser (Chrome or Firefox work best)</li>
+                <li>On mobile, check your device location permissions</li>
+              </ul>
+            </div>
           </div>
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setShowLocationError(false);
               setShowPermissionDialog(false);
+              // Reset location status for future attempts
+              setLocationStatus("idle");
             }}>
               Cancel
             </Button>
             <Button variant="default" onClick={skipLocationAndContinue}>
               Continue Without Location
+            </Button>
+            <Button variant="default" onClick={retryPermissions}>
+              Retry
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -540,51 +789,124 @@ const NoiseRecorder = () => {
   useEffect(() => {
     if (isLocationMapOpen && locationMapContainer.current && location) {
       try {
-        // Use our custom function instead of directly creating the map
-        locationMap.current = createMapWithGeolocation(
-          locationMapContainer.current,
-          location
-        );
+        // Clear any previous map instance
+        if (locationMap.current) {
+          locationMap.current.remove();
+          locationMap.current = null;
+        }
         
-        locationMap.current.on('load', () => {
-          if (!locationMap.current) return;
+        // Find the wrapper element - with proper TypeScript handling
+        const mapWrapper = locationMapContainer.current.querySelector('#mapbox-container-wrapper') as HTMLDivElement;
+        const loadingIndicator = locationMapContainer.current.querySelector('.map-loading') as HTMLDivElement;
+        
+        if (!mapWrapper) {
+          console.error("Map wrapper element not found");
+          return;
+        }
+        
+        // Always use the dedicated token for the confirmation map
+        mapboxgl.accessToken = LOCATION_MAP_TOKEN;
+        
+        // Create simplified map with minimal options
+        try {
+          locationMap.current = new mapboxgl.Map({
+            container: mapWrapper,
+            style: "mapbox://styles/mapbox/streets-v11",
+            center: [location.longitude, location.latitude],
+            zoom: 15,
+            attributionControl: false,
+            preserveDrawingBuffer: true // Help with rendering issues
+          });
           
-          locationMarker.current = new mapboxgl.Marker({
-            draggable: true,
-            color: "#8B5CF6"
-          })
+          // Hide loading indicator when map is loaded
+          locationMap.current.on('load', () => {
+            debug("Map fully loaded in location dialog");
+            if (loadingIndicator) {
+              loadingIndicator.style.display = 'none';
+            }
+            
+            // Only add marker after map is fully loaded
+            locationMarker.current = new mapboxgl.Marker({
+              draggable: true,
+              color: "#8B5CF6"
+            })
             .setLngLat([location.longitude, location.latitude])
             .addTo(locationMap.current);
-          
-          locationMarker.current.on('dragend', () => {
-            if (!locationMarker.current) return;
             
-            const lngLat = locationMarker.current.getLngLat();
-            setLocation({
-              latitude: lngLat.lat,
-              longitude: lngLat.lng
+            // Handle marker drag end
+            locationMarker.current.on('dragend', () => {
+              if (!locationMarker.current) return;
+              
+              const lngLat = locationMarker.current.getLngLat();
+              setLocation({
+                latitude: lngLat.lat,
+                longitude: lngLat.lng
+              });
             });
           });
-        });
-        
-        setTimeout(() => {
-          if (locationMap.current) {
-            locationMap.current.resize();
+          
+          // Force resize for proper rendering
+          setTimeout(() => {
+            if (locationMap.current) {
+              locationMap.current.resize();
+              debug("Forced resize of location confirmation map");
+            }
+          }, 100);
+        } catch (mapError) {
+          console.error("Error creating map instance:", mapError);
+          if (loadingIndicator) {
+            loadingIndicator.innerHTML = '<div class="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 text-center">Failed to create map</div>';
           }
-        }, 300);
+        }
+        
+        // Add backup timeout for loading indicator and marker
+        setTimeout(() => {
+          if (loadingIndicator && loadingIndicator.style.display !== 'none') {
+            loadingIndicator.style.display = 'none';
+          }
+          
+          // If marker wasn't added, try to add it now
+          if (!locationMarker.current && locationMap.current) {
+            try {
+              locationMarker.current = new mapboxgl.Marker({
+                draggable: true,
+                color: "#8B5CF6"
+              })
+              .setLngLat([location.longitude, location.latitude])
+              .addTo(locationMap.current);
+            } catch (markerError) {
+              console.error("Error adding marker after timeout:", markerError);
+            }
+          }
+        }, 3000);
+        
+        // Show error if map fails to load
+        if (locationMap.current) {
+          locationMap.current.on('error', (e) => {
+            console.error("Mapbox error:", e);
+            
+            if (loadingIndicator) {
+              loadingIndicator.innerHTML = '<div class="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 text-center">Map failed to load</div>';
+            }
+          });
+        }
       } catch (error) {
         console.error("Error initializing map:", error);
-        toast({
-          title: "Map Error",
-          description: "Could not initialize the location map. Please try again.",
-          variant: "destructive",
-        });
+        
+        // Still try to show a basic message
+        const loadingIndicator = locationMapContainer.current?.querySelector('.map-loading') as HTMLDivElement;
+        if (loadingIndicator) {
+          loadingIndicator.innerHTML = '<div class="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 text-center">Map initialization failed</div>';
+        }
       }
       
       return () => {
         if (locationMap.current) {
           locationMap.current.remove();
           locationMap.current = null;
+        }
+        if (locationMarker.current) {
+          locationMarker.current = null;
         }
       };
     }
@@ -593,8 +915,23 @@ const NoiseRecorder = () => {
   const renderLocationConfirmationDialog = () => {
     if (!isLocationMapOpen) return null;
 
+    // Generate static map URL for faster initial display
+    const generateStaticMapUrl = (lat: number, lng: number) => {
+      // Use the dedicated token for the static map as well
+      return `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-s+8B5CF6(${lng},${lat})/${lng},${lat},14,0/400x400@2x?access_token=${LOCATION_MAP_TOKEN}`;
+    };
+
     return (
-      <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+      <Dialog open={isLocationMapOpen} onOpenChange={(open) => {
+        if (!open) {
+          // Clean up map when dialog closes
+          if (locationMap.current) {
+            locationMap.current.remove();
+            locationMap.current = null;
+          }
+          setIsLocationMapOpen(false);
+        }
+      }}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Confirm Your Location</DialogTitle>
@@ -613,7 +950,29 @@ const NoiseRecorder = () => {
                 <p>You can still submit the noise report without location data.</p>
               </div>
             ) : (
-              <div ref={locationMapContainer} className="h-[400px] w-full rounded-md overflow-hidden" />
+              <div 
+                ref={locationMapContainer} 
+                className="h-[400px] w-full rounded-md overflow-hidden border border-gray-200 dark:border-gray-700"
+                style={{ 
+                  display: "block",
+                  position: "relative",
+                  minHeight: "400px",
+                  backgroundImage: location ? `url(${generateStaticMapUrl(location.latitude, location.longitude)})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center'
+                }}
+              >
+                {/* Fallback loading indicator */}
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50/30 dark:bg-gray-900/30 z-10 map-loading">
+                  <div className="flex flex-col items-center bg-white/80 dark:bg-black/50 p-3 rounded-lg">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-2" />
+                    <p className="text-sm text-gray-700 dark:text-gray-300">Loading interactive map...</p>
+                  </div>
+                </div>
+
+                {/* This wrapper ensures the map renders correctly */}
+                <div className="absolute inset-0 w-full h-full" id="mapbox-container-wrapper"></div>
+              </div>
             )}
           </div>
           
@@ -632,10 +991,11 @@ const NoiseRecorder = () => {
                 <Button variant="outline" onClick={() => setIsLocationMapOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={() => {
-                  setIsLocationMapOpen(false);
-                  startRecording();
-                }}>
+                <Button 
+                  onClick={handleLocationConfirmation}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
                   Confirm Location
                 </Button>
               </>
@@ -862,10 +1222,14 @@ const NoiseRecorder = () => {
             <Button 
               type="button" 
               variant="default" 
-              onClick={() => setShowSuccessDialog(false)}
+              onClick={() => {
+                setShowSuccessDialog(false);
+                // Redirect to the About page after closing the dialog
+                navigate('/about');
+              }}
               className="w-full sm:w-auto"
             >
-              Done
+              Learn More About Noise Pollution
             </Button>
           </DialogFooter>
         </DialogContent>

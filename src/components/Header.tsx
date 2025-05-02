@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import NoiseSenseLogo from '@/components/NoiseSenseLogo';
 import ThemeToggle from '@/components/ThemeToggle';
-import NotificationSystem from '@/components/NotificationSystem';
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -114,7 +113,6 @@ export function Header() {
 
         {/* Mobile Menu Button and Theme Toggle */}
         <div className="flex items-center gap-2">
-          <NotificationSystem />
           <ThemeToggle />
           
           <Button 
