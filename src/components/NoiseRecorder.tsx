@@ -809,7 +809,17 @@ const NoiseRecorder = () => {
     try {
       setIsSubmitting(true);
       
-      // Create the new report object with nullish location handling
+      // Get current date/time details
+      const now = new Date();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }); // Monday, Tuesday, etc.
+      const timeOfDay = 
+        hour >= 5 && hour < 12 ? "Morning" :
+        hour >= 12 && hour < 17 ? "Afternoon" :
+        hour >= 17 && hour < 22 ? "Evening" : "Night";
+      
+      // Create the new report object with enhanced time data
       const newReport = {
         id: `report-${Date.now()}`, // Generate a unique ID
         latitude: location?.latitude || null,
@@ -817,17 +827,25 @@ const NoiseRecorder = () => {
         decibel_level: decibels,
         noise_type: noiseType,
         notes: notes || null,
-        created_at: new Date().toISOString(),
-        address: location ? "Pune, Maharashtra" : "No location data", // Default address with location indicator
+        created_at: now.toISOString(),
+        address: location ? "Pune, Maharashtra" : "No location data",
         status: "unresolved", // Default status
+        time_data: {
+          hour,
+          minute,
+          formatted_time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+          day_of_week: dayOfWeek,
+          time_of_day: timeOfDay,
+          timestamp: now.getTime() // Unix timestamp for sorting
+        },
         device_info: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,
-          timestamp: new Date().toISOString(),
+          timestamp: now.toISOString(),
         },
       };
       
-      // Prepare report data for Supabase with explicit null handling
+      // Prepare report data for Supabase with explicit null handling and enhanced time data
       const reportData = {
         decibel_level: decibels,
         noise_type: noiseType,
@@ -835,10 +853,19 @@ const NoiseRecorder = () => {
         // Add default latitude/longitude values that indicate missing location data
         latitude: location?.latitude ?? 0,
         longitude: location?.longitude ?? 0,
+        created_at: now.toISOString(),
+        time_data: {
+          hour,
+          minute,
+          formatted_time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+          day_of_week: dayOfWeek,
+          time_of_day: timeOfDay,
+          timestamp: now.getTime()
+        },
         device_info: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,
-          timestamp: new Date().toISOString(),
+          timestamp: now.toISOString(),
         },
       };
       

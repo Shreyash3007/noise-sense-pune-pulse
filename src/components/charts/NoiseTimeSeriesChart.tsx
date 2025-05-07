@@ -29,6 +29,11 @@ export interface NoiseTimeSeriesData {
   range: number;
   count: number;
   primaryNoiseType: string;
+  hourOfDay?: number;
+  timeOfDay?: string;
+  dayOfWeek?: string;
+  formattedTime?: string;
+  timestamp?: number;
 }
 
 export interface NoiseTimeSeriesChartProps {
@@ -62,13 +67,25 @@ const NoiseTimeSeriesChart = ({
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const data = payload[0].payload;
       return (
         <div className="bg-background border border-border p-3 rounded-md shadow-md">
           <p className="font-medium">{`${label}`}</p>
-          <p className="text-sm text-destructive">{`Max: ${payload[0].payload.maxLevel} dB`}</p>
-          <p className="text-sm text-primary">{`Avg: ${payload[0].payload.avgLevel} dB`}</p>
-          <p className="text-sm text-muted-foreground">{`Min: ${payload[0].payload.minLevel} dB`}</p>
-          <p className="text-xs mt-1 text-muted-foreground">{`Type: ${payload[0].payload.primaryNoiseType}`}</p>
+          <p className="text-sm text-destructive">{`Max: ${data.maxLevel} dB`}</p>
+          <p className="text-sm text-primary">{`Avg: ${data.avgLevel} dB`}</p>
+          <p className="text-sm text-muted-foreground">{`Min: ${data.minLevel} dB`}</p>
+          <div className="border-t mt-2 pt-2">
+            {data.formattedTime && (
+              <p className="text-xs text-muted-foreground">{`Time: ${data.formattedTime}`}</p>
+            )}
+            {data.timeOfDay && (
+              <p className="text-xs text-muted-foreground">{`Period: ${data.timeOfDay}`}</p>
+            )}
+            {data.dayOfWeek && (
+              <p className="text-xs text-muted-foreground">{`Day: ${data.dayOfWeek}`}</p>
+            )}
+            <p className="text-xs text-muted-foreground">{`Type: ${data.primaryNoiseType}`}</p>
+          </div>
         </div>
       );
     }

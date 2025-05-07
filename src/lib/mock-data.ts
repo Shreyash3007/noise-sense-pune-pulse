@@ -1,4 +1,4 @@
-import { NoiseReport } from "@/integrations/supabase/types";
+// No need for imports - we are self-contained
 
 // Pune coordinates bounds (approximate)
 const PUNE_BOUNDS = {
@@ -38,6 +38,29 @@ export const PUNE_AREAS = [
   { name: "Baner", lat: 18.5590, lng: 73.7868, noiseTypes: ["Traffic", "Construction", "Restaurant/Bar"] },
   { name: "MIDC Industrial Area", lat: 18.6207, lng: 73.8567, noiseTypes: ["Industrial", "Machinery", "Generator"] }
 ];
+
+// Define NoiseReport interface for generated mock data
+export interface NoiseReport {
+  id: string;
+  latitude: number | null;
+  longitude: number | null;
+  decibel_level: number;
+  noise_type: string;
+  created_at: string;
+  notes?: string;
+  address?: string;
+  reported_by?: string;
+  status?: string;
+  flagged?: boolean;
+  time_data?: {
+    hour: number;
+    minute: number;
+    formatted_time: string;
+    day_of_week: string;
+    time_of_day: string;
+    timestamp: number;
+  };
+}
 
 /**
  * Generate a random number between min and max
@@ -204,41 +227,7 @@ function generateNote(noiseType: string): string {
 export function generatePuneNoiseData(count: number = 500): NoiseReport[] {
   const reports: NoiseReport[] = [];
   
-  // Ensure we have a variety of noise types for charts
-  const ensureNoiseTypes = ['Traffic', 'Construction', 'Industrial', 'Loudspeakers', 'Events', 'Music', 'Vehicle Horn'];
-  const ensureStatuses = ['pending', 'resolved', 'investigating', 'escalated', 'in-progress'];
-  
-  // Generate guaranteed variety first
-  for (let i = 0; i < ensureNoiseTypes.length; i++) {
-    const noiseType = ensureNoiseTypes[i];
-    const status = ensureStatuses[i % ensureStatuses.length];
-    const { lat, lng, address } = generateBiasedLocation();
-    
-    // Generate varied noise levels for good chart distribution
-    const decibelLevel = 40 + (i * 10); // 40, 50, 60, 70, 80, 90, 100
-    
-    // Create reports with different dates for time series
-    const daysAgo = i * 5; // 0, 5, 10, 15, etc.
-    const date = new Date();
-    date.setDate(date.getDate() - daysAgo);
-    
-    reports.push({
-      id: `report-guaranteed-${i + 1}`,
-      latitude: lat,
-      longitude: lng,
-      decibel_level: decibelLevel,
-      noise_type: noiseType,
-      created_at: date.toISOString(),
-      notes: `Sample ${noiseType} noise report with ${decibelLevel}dB level`,
-      address: address,
-      reported_by: generateReporterName(),
-      status: status,
-      flagged: i % 3 === 0 // Some flagged for variety
-    });
-  }
-  
-  // Fill the rest with random data
-  for (let i = ensureNoiseTypes.length; i < count; i++) {
+  for (let i = 0; i < count; i++) {
     // Generate location and associated noise type
     const { lat, lng, address, noiseType } = generateBiasedLocation();
     
@@ -248,31 +237,88 @@ export function generatePuneNoiseData(count: number = 500): NoiseReport[] {
     // Bias toward recent dates (more reports in last week)
     const daysAgo = Math.random() < 0.6 ? 7 : 30;
     
+    // Create date with random hour for better time distribution
+    const date = new Date(randomDate(daysAgo));
+    const hour = Math.floor(Math.random() * 24); // Random hour between 0-23
+    date.setHours(hour);
+    
+    // Determine time of day
+    const timeOfDay = 
+      hour >= 5 && hour < 12 ? "Morning" :
+      hour >= 12 && hour < 17 ? "Afternoon" :
+      hour >= 17 && hour < 22 ? "Evening" : "Night";
+    
+    // Day of week
+    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+    
     reports.push({
       id: `report-${i + 1}`,
       latitude: lat,
       longitude: lng,
       decibel_level: decibelLevel,
       noise_type: noiseType,
-      created_at: randomDate(daysAgo),
-      notes: Math.random() > 0.3 ? generateNote(noiseType) : undefined, // 70% have notes
-      address: address,
-      reported_by: Math.random() > 0.2 ? generateReporterName() : undefined, // 80% have reporter names
-      status: Math.random() < 0.7 ? "pending" : Math.random() < 0.85 ? "resolved" : "investigating", // Mix of statuses
-      flagged: Math.random() < 0.15 // 15% are flagged
+      created_at: date.toISOString(),
+      address: address || "Pune, Maharashtra",
+      time_data: {
+        hour: hour,
+        minute: date.getMinutes(),
+        formatted_time: `${hour.toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`,
+        day_of_week: dayOfWeek,
+        time_of_day: timeOfDay,
+        timestamp: date.getTime()
+      }
     });
   }
   
-  // Debug check to ensure data quality
-  console.log(`Generated ${reports.length} reports`);
-  console.log(`Noise type distribution:`, reports.reduce((acc, r) => {
-    acc[r.noise_type] = (acc[r.noise_type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>));
-  console.log(`Status distribution:`, reports.reduce((acc, r) => {
-    acc[r.status || 'unknown'] = (acc[r.status || 'unknown'] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>));
+  // Ensure we have data in all time periods by adding at least 5 reports in each period
+  const periods = ["Morning", "Afternoon", "Evening", "Night"];
+  
+  periods.forEach(period => {
+    const periodReports = reports.filter(r => r.time_data?.time_of_day === period);
+    
+    if (periodReports.length < 5) {
+      const toAdd = 5 - periodReports.length;
+      
+      for (let i = 0; i < toAdd; i++) {
+        // Generate location and associated noise type
+        const { lat, lng, address, noiseType } = generateBiasedLocation();
+        
+        // Generate noise level based on type
+        const decibelLevel = getNoiseLevel(noiseType);
+        
+        // Create date with hour in the right period
+        const date = new Date(randomDate(7)); // Recent date
+        let hour: number;
+        
+        if (period === "Morning") hour = 7 + Math.floor(Math.random() * 5); // 7-11
+        else if (period === "Afternoon") hour = 12 + Math.floor(Math.random() * 5); // 12-16
+        else if (period === "Evening") hour = 17 + Math.floor(Math.random() * 5); // 17-21
+        else hour = (22 + Math.floor(Math.random() * 7)) % 24; // 22-23, 0-4
+        
+        date.setHours(hour);
+        
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+        
+        reports.push({
+          id: `report-${count + reports.length + 1}`,
+          latitude: lat,
+          longitude: lng,
+          decibel_level: decibelLevel,
+          noise_type: noiseType,
+          created_at: date.toISOString(),
+          address: address || "Pune, Maharashtra",
+          time_data: {
+            hour: hour,
+            minute: date.getMinutes(),
+            formatted_time: `${hour.toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`,
+            day_of_week: dayOfWeek,
+            time_of_day: period,
+            timestamp: date.getTime()
+          }
+        });
+      }
+    }
+  });
   
   return reports;
 }
