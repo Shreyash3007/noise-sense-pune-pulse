@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "noisesense-b550c",
     "public": "dist",
     "ignore": [
       "firebase.json",
