@@ -35,24 +35,7 @@ import type { Map as LeafletMap, Marker } from 'leaflet';
 // Add TypeScript declarations for Google Maps API
 declare global {
   interface Window {
-    google: {
-      maps: {
-        Map: new (element: HTMLElement, options: GoogleMapOptions) => GoogleMapInstance;
-        ControlPosition: {
-          RIGHT_TOP: number;
-        };
-        MapTypeId: {
-          ROADMAP: string;
-        };
-        Animation: {
-          DROP: number;
-        };
-        Marker: new (options: GoogleMarkerOptions) => GoogleMarkerInstance;
-        event: {
-          trigger: (instance: any, eventName: string, ...args: any[]) => void;
-        }
-      }
-    };
+    google: any;
     initGoogleMaps: () => void;
     setTimeout: (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
     clearTimeout: (id: number) => void;
@@ -60,7 +43,17 @@ declare global {
 }
 
 // Define types for Google Maps
-interface GoogleMap extends google.maps.Map {}
+interface GoogleMapInstance {
+  setCenter: (center: {lat: number, lng: number}) => void;
+  getCenter: () => {lat: () => number, lng: () => number};
+  setZoom: (zoom: number) => void;
+  getDiv: () => HTMLElement;
+}
+
+interface GoogleMarkerInstance {
+  setPosition: (position: {lat: number, lng: number}) => void;
+  setMap: (map: GoogleMapInstance | null) => void;
+}
 
 interface GoogleMapOptions {
   center: {lat: number, lng: number};
@@ -68,40 +61,18 @@ interface GoogleMapOptions {
   mapTypeId?: string;
   streetViewControl?: boolean;
   fullscreenControl?: boolean;
+  zoomControl?: boolean;
   mapTypeControl?: boolean;
-  zoomControlOptions?: {
-    position: number;
-  };
-  disableDefaultUI?: boolean;
-  gestureHandling?: string;
-  clickableIcons?: boolean;
+  styles?: Array<any>;
 }
 
-interface GoogleMapInstance {
-  setCenter(latLng: {lat: number, lng: number}): void;
-}
-
-interface GoogleMarkerOptions {
-  position: {lat: number, lng: number};
-  map: GoogleMapInstance;
-  draggable?: boolean;
-  animation?: number;
-  title?: string;
-}
-
-interface GoogleMarkerInstance {
-  getPosition(): {
-    lat(): number;
-    lng(): number;
-  };
-  addListener(event: string, callback: () => void): void;
-}
+// Global variable to track if Google Maps API is loaded
+let googleMapsLoaded = false;
 
 // ---------- Google Maps API Configuration ----------
 // Google Maps API is used for location confirmation only
 const GOOGLE_MAPS_API_KEY = "AIzaSyALJsqgMgW-IAGXnnaB3d_oLdeaFxH-AaA";
 const GOOGLE_MAPS_LIBRARIES = ["places"];
-let googleMapsLoaded = false;
 
 // Enhanced helper to load Google Maps API script with better caching and error handling
 const loadGoogleMapsAPI = (): Promise<void> => {
@@ -385,7 +356,10 @@ const NoiseRecorder = () => {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       if (audioContextRef.current) {
-        audioContextRef.current.close().catch(console.error);
+        // Check if context is in a closable state before closing
+        if (audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close().catch(console.error);
+        }
       }
     };
   }, []);
@@ -403,7 +377,10 @@ const NoiseRecorder = () => {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       if (audioContextRef.current) {
-        audioContextRef.current.close().catch(console.error);
+        // Check if context is in a closable state before closing
+        if (audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close().catch(console.error);
+        }
       }
     };
   }, []);
@@ -786,6 +763,9 @@ const NoiseRecorder = () => {
         // Properly clean up audio resources
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
+        }
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close().catch(err => console.warn('AudioContext close error:', err));
         }
       }, 10000);
     } catch (error) {
