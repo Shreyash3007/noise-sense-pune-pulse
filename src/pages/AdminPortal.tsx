@@ -253,28 +253,59 @@ const AdminPortal: React.FC = () => {
         // Check if we already have stored data in localStorage
         const storedReports = localStorage.getItem('noiseReports');
         
-        if (storedReports) {
-          setNoiseReports(JSON.parse(storedReports));
-          setLoading(false);
-          
-          // After fetching reports data, load AI insights
-          loadAIInsights(JSON.parse(storedReports));
-        } else {
-          // Import and use the generatePuneNoiseData function if no stored data
-          const { generatePuneNoiseData } = await import('@/lib/mock-data');
-          const mockData: NoiseReport[] = generatePuneNoiseData(500);
-          
-          // Store the generated data
-          localStorage.setItem('noiseReports', JSON.stringify(mockData));
-          
-          setNoiseReports(mockData);
-          setLoading(false);
-          
-          // After fetching reports data, load AI insights
-          loadAIInsights(mockData);
+        if (storedReports && storedReports !== "undefined" && storedReports.length > 10) {
+          try {
+            const parsedReports = JSON.parse(storedReports);
+            if (Array.isArray(parsedReports) && parsedReports.length > 0) {
+              setNoiseReports(parsedReports);
+              setLoading(false);
+              
+              // After fetching reports data, load AI insights
+              loadAIInsights(parsedReports);
+              return;
+            }
+          } catch (parseError) {
+            console.error("Error parsing stored reports:", parseError);
+            // Continue to generate mock data
+          }
         }
+        
+        // Generate mock data if no valid stored data
+        console.log("Generating mock data for admin portal");
+        const { generatePuneNoiseData } = await import('@/lib/mock-data');
+        const mockData = generatePuneNoiseData(500);
+        
+        // Store the generated data
+        localStorage.setItem('noiseReports', JSON.stringify(mockData));
+        
+        setNoiseReports(mockData);
+        setLoading(false);
+        
+        // After fetching reports data, load AI insights
+        loadAIInsights(mockData);
+        
       } catch (err) {
-        setError("Failed to load noise reports data");
+        console.error("Failed to load or generate noise reports data:", err);
+        
+        // Final fallback - create basic mock data directly
+        try {
+          const basicMockData = Array(50).fill(null).map((_, i) => ({
+            id: `report-fallback-${i}`,
+            latitude: 18.52 + (Math.random() * 0.1),
+            longitude: 73.85 + (Math.random() * 0.1),
+            decibel_level: 50 + Math.floor(Math.random() * 40),
+            noise_type: ["Traffic", "Construction", "Industrial", "Loudspeakers", "Vehicle Horn"][Math.floor(Math.random() * 5)],
+            created_at: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+            notes: "Generated fallback data",
+            status: "pending",
+          }));
+          
+          setNoiseReports(basicMockData);
+          localStorage.setItem('noiseReports', JSON.stringify(basicMockData));
+        } catch (fallbackErr) {
+          setError("Failed to load or generate noise reports data");
+        }
+        
         setLoading(false);
       }
     };
