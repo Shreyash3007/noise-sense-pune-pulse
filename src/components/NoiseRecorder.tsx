@@ -28,158 +28,66 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
 import { env, debug } from "@/lib/env";
 import { useNavigate } from "react-router-dom";
+import type { Map as LeafletMap, Marker } from 'leaflet';
 
-// Set Mapbox token from environment with error handling
-const MAPBOX_TOKEN = env.MAPBOX_ACCESS_TOKEN;
-// Special token specifically for the location confirmation map
-const LOCATION_MAP_TOKEN = "pk.eyJ1Ijoic2hyZXlhc2gwNDUiLCJhIjoiY21hNGI5YXhzMDNwcTJqczYyMnR3OWdkcSJ9.aVpyfgys6f-h27ftG_63Zw";
-let mapboxInitialized = false;
-
-// Initialize Mapbox immediately
-try {
-  if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'pk.your-mapbox-token') {
-    console.warn("⚠️ Mapbox token is missing or using default value. Using fallback token.");
-    mapboxgl.accessToken = LOCATION_MAP_TOKEN;
-  } else {
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-  }
-  
-  mapboxInitialized = true;
-  debug("Mapbox initialized successfully with token: " + mapboxgl.accessToken);
-  
-  // Don't use dummy container preloading as it might cause issues
-} catch (error) {
-  console.error("Failed to initialize Mapbox:", error);
-  // Try with fallback token
-  try {
-    mapboxgl.accessToken = LOCATION_MAP_TOKEN;
-    mapboxInitialized = true;
-    debug("Mapbox initialized with fallback token");
-  } catch (fallbackError) {
-    console.error("Failed to initialize Mapbox with fallback token:", fallbackError);
-  }
-}
-
-// Also preload resources for the location confirmation map with the dedicated token
-try {
-  // Create a dummy map container to initialize mapbox resources with the location map token
-  const locationDummyContainer = document.createElement('div');
-  locationDummyContainer.style.position = 'absolute';
-  locationDummyContainer.style.visibility = 'hidden';
-  locationDummyContainer.style.height = '1px';
-  locationDummyContainer.style.width = '1px';
-  
-  // Append to body only briefly to trigger resource loading
-  document.body.appendChild(locationDummyContainer);
-  
-  // Use the dedicated token for this preload
-  const originalToken = mapboxgl.accessToken;
-  mapboxgl.accessToken = LOCATION_MAP_TOKEN;
-  
-  try {
-    // Create and immediately dispose of a map to preload resources
-    const preloadLocationMap = new mapboxgl.Map({
-      container: locationDummyContainer,
-      style: 'mapbox://styles/mapbox/streets-v11',
-      zoom: 0,
-      interactive: false
-    });
-    
-    // Dispose after a short delay to allow resource loading
-    setTimeout(() => {
-      preloadLocationMap.remove();
-      document.body.removeChild(locationDummyContainer);
-      // Restore the original token
-      mapboxgl.accessToken = originalToken;
-    }, 500);
-  } catch (preloadError) {
-    // Ignore preload errors, just clean up
-    document.body.removeChild(locationDummyContainer);
-    // Restore the original token
-    mapboxgl.accessToken = originalToken;
-  }
-} catch (locationMapError) {
-  console.error("Failed to preload location map resources:", locationMapError);
-}
-
-// Custom GeolocationControl that handles errors gracefully
-function createMapWithGeolocation(container, initialLocation) {
-  // If Mapbox failed to initialize, try again
-  if (!mapboxInitialized) {
-    try {
-      mapboxgl.accessToken = env.MAPBOX_ACCESS_TOKEN;
-      mapboxInitialized = true;
-      debug("Mapbox re-initialized in createMapWithGeolocation");
-    } catch (error) {
-      console.error("Failed to initialize Mapbox:", error);
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md';
-      errorDiv.innerHTML = 'Map unavailable - check Mapbox token configuration';
-      if (container) container.appendChild(errorDiv);
-      return null;
+// Simple function to get location
+const getLocationAsync = (): Promise<GeolocationPosition> => {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation not supported"));
+      return;
     }
-  }
-
-  try {
-    // Ensure container is ready
-    if (!container) {
-      console.error("Map container is not available");
-      return null;
-    }
-
-    // Create map instance
-    const map = new mapboxgl.Map({
-      container: container,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: [initialLocation?.longitude || 73.8567, initialLocation?.latitude || 18.5204], // Default to Pune if no location
-      zoom: initialLocation ? 15 : 12,
-      attributionControl: false,
-    });
     
-    // Add navigation controls
-    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    
-    // Add geolocation with error handling
-    if (map) {
-      const geolocateControl = new mapboxgl.GeolocateControl({
-        positionOptions: {
-          enableHighAccuracy: true
+    // Try multiple times with increasing timeout
+    const tryGetLocation = (attempt = 1) => {
+      const options = {
+        enableHighAccuracy: true,
+        timeout: attempt * 10000, // Increase timeout with each attempt
+        maximumAge: 0
+      };
+
+      debug(`Attempting to get location (attempt ${attempt}) with timeout ${options.timeout}ms`);
+      
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          debug(`Successfully got position on attempt ${attempt}`);
+          resolve(position);
         },
-        trackUserLocation: true,
-        showUserLocation: true,
-        showAccuracyCircle: true,
-      });
-      
-      map.addControl(geolocateControl);
-      
-      // Handle geolocation errors silently
-      geolocateControl.on('error', (err) => {
-        console.warn('Geolocation error in NoiseRecorder:', err);
-      });
+        (error) => {
+          if (attempt < 3 && error.code === 3) { // Timeout error
+            debug(`Location attempt ${attempt} timed out, trying again`);
+            tryGetLocation(attempt + 1);
+          } else {
+            reject(error);
+          }
+        },
+        options
+      );
+    };
+    
+    tryGetLocation();
+  });
+};
+
+// Add a geocoding search function
+const geocodeLocation = async (searchQuery: string) => {
+  try {
+    const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json`;
+    const response = await fetch(`${endpoint}?access_token=${env.MAPBOX_ACCESS_TOKEN}&limit=5`);
+    
+    if (!response.ok) {
+      throw new Error('Geocoding API request failed');
     }
     
-    // Force resize after map initialization to ensure proper rendering
-    setTimeout(() => {
-      if (map) {
-        map.resize();
-        debug("Map resize called in createMapWithGeolocation");
-      }
-    }, 300);
-    
-    return map;
+    const data = await response.json();
+    return data.features;
   } catch (error) {
-    console.error("Failed to create map:", error);
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md';
-    errorDiv.innerHTML = 'Map failed to load - please try again later';
-    if (container) container.appendChild(errorDiv);
-    return null;
+    console.error('Error geocoding location:', error);
+    return [];
   }
-}
+};
 
 const NoiseRecorder = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -198,6 +106,17 @@ const NoiseRecorder = () => {
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [permissionStep, setPermissionStep] = useState<"mic" | "location">("mic");
   const [showLocationError, setShowLocationError] = useState(false);
+  const [manualLatitude, setManualLatitude] = useState("");
+  const [manualLongitude, setManualLongitude] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [locationSearchQuery, setLocationSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [manualMapVisible, setManualMapVisible] = useState(false);
+  const manualMapContainer = useRef<HTMLDivElement>(null);
+  const [manualMap, setManualMap] = useState<any>(null);
+  const [manualMarker, setManualMarker] = useState<any>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -205,8 +124,8 @@ const NoiseRecorder = () => {
   
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
   const locationMapContainer = useRef<HTMLDivElement>(null);
-  const locationMap = useRef<mapboxgl.Map | null>(null);
-  const locationMarker = useRef<mapboxgl.Marker | null>(null);
+  const [leafletMap, setLeafletMap] = useState<LeafletMap | null>(null);
+  const [leafletMarker, setLeafletMarker] = useState<Marker | null>(null);
   
   useEffect(() => {
     if (!isRecording) {
@@ -230,7 +149,7 @@ const NoiseRecorder = () => {
     { value: "Other", label: "Other" },
   ];
   
-  const getLocationAsync = async () => {
+  const fetchUserLocation = async () => {
     setLocationStatus("fetching");
     try {
       // Check if geolocation is supported
@@ -245,139 +164,63 @@ const NoiseRecorder = () => {
         return null;
       }
 
-      // Optional secondary permissions check for Chrome and other browsers
-      // This helps identify if location permission has been granted but is being blocked
+      // More robust permissions check with fallback
+      let permissionState = "prompt"; // Default assumption
+      
       try {
-        const permResult = await navigator.permissions?.query({ name: 'geolocation' });
-        debug(`Geolocation permission state: ${permResult?.state}`);
-        
-        if (permResult?.state === 'denied') {
-          toast({
-            title: "Location Access Blocked",
-            description: "Your browser settings are blocking location access. Please check your browser settings.",
-            variant: "destructive",
-          });
-          setLocationStatus("skipped");
-          setShowLocationError(true);
-          return null;
+        // Try the Permissions API first
+        if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+          const permResult = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+          debug(`Geolocation permission state from API: ${permResult.state}`);
+          permissionState = permResult.state;
+          
+          if (permResult.state === 'denied') {
+            toast({
+              title: "Location Access Blocked",
+              description: "Please enable location access in your browser settings and try again.",
+              variant: "destructive",
+            });
+            setLocationStatus("skipped");
+            setShowLocationError(true);
+            return null;
+          }
+        } else {
+          debug("Permissions API not supported, using standard geolocation");
         }
       } catch (permError) {
-        // Permissions API not supported, continue with regular geolocation
-        debug("Permissions API not supported, using standard geolocation");
+        debug("Error checking permissions:", permError);
+        // Continue with regular geolocation as fallback
       }
 
-      // Try alternate methods if available
-      let useHighAccuracy = true;
-      let timeout = 15000;
-      
-      // First attempt with high accuracy
+      // Try to get location
       try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          const geoWatchId = navigator.geolocation.watchPosition(
-            (position) => {
-              navigator.geolocation.clearWatch(geoWatchId);
-              resolve(position);
-            },
-            (posError) => {
-              if (posError.code === 1) { // Permission denied
-                // Let the next handler deal with it
-                reject({ handled: false, error: posError });
-              } else if (posError.code === 2 || posError.code === 3) { // Position unavailable or timeout
-                // Try again with lower accuracy in the catch block
-                reject({ handled: false, error: posError, tryAgain: true });
-              } else {
-                reject({ handled: false, error: posError });
-              }
-            },
-            {
-              enableHighAccuracy: useHighAccuracy,
-              timeout: timeout,
-              maximumAge: 0
-            }
-          );
-          
-          // Clear watch after timeout to prevent resource leaks
-          setTimeout(() => {
-            navigator.geolocation.clearWatch(geoWatchId);
-          }, timeout + 1000);
-        });
+        debug("Attempting to get geolocation...");
+        const position = await getLocationAsync();
         
+        debug(`Successfully got location: ${position.coords.latitude}, ${position.coords.longitude}`);
         setLocation({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
         });
         setLocationStatus("success");
         setIsLocationMapOpen(true);
         
-        return pos;
-      } catch (geoError: any) {
-        // If we should try again with lower accuracy
-        if (geoError?.tryAgain) {
-          debug("Retrying geolocation with lower accuracy");
-          useHighAccuracy = false;
-          timeout = 20000; // Longer timeout
-          
-          try {
-            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(
-                resolve,
-                (posError) => {
-                  console.error("Location error on retry:", posError.message);
-                  handleLocationError(posError);
-                  reject({ handled: true, error: posError });
-                },
-                {
-                  enableHighAccuracy: useHighAccuracy,
-                  timeout: timeout,
-                  maximumAge: 60000 // Allow cached position
-                }
-              );
-            });
-            
-            setLocation({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-            });
-            setLocationStatus("success");
-            setIsLocationMapOpen(true);
-            
-            return pos;
-          } catch (retryError) {
-            // Already handled by the error callback
-            return null;
-          }
-        } else if (!geoError?.handled) {
-          // If we haven't tried to handle this error yet
-          if (geoError?.error) {
-            handleLocationError(geoError.error);
-          } else {
-            console.error("Unexpected error in location handling:", geoError);
-            toast({
-              title: "Location Error",
-              description: "An unexpected error occurred. You can continue without location data or try again.",
-              variant: "destructive",
-            });
-            setLocationStatus("error");
-            setShowLocationError(true);
-          }
-        }
-        
+        return position;
+      } catch (error: any) {
+        debug("Geolocation error in fetchUserLocation:", error);
+        handleLocationError(error);
         return null;
       }
     } catch (error: any) {
-      // Only log error if it wasn't already handled
-      if (!error?.handled) {
-        console.error("Unexpected error in location handling:", error);
-        
-        toast({
-          title: "Location Error",
-          description: "An unexpected error occurred. You can continue without location data or try again.",
-          variant: "destructive",
-        });
-        setLocationStatus("error");
-        setShowLocationError(true);
-      }
+      console.error("Unexpected error in location handling:", error);
       
+      toast({
+        title: "Location Error",
+        description: "An unexpected error occurred. You can continue without location data or try again.",
+        variant: "destructive",
+      });
+      setLocationStatus("error");
+      setShowLocationError(true);
       return null;
     }
   };
@@ -398,7 +241,7 @@ const NoiseRecorder = () => {
     } else if (posError.code === 2) { // Position unavailable
       toast({
         title: "Location Unavailable",
-        description: "Unable to determine your location. Check your connection or try again later.",
+        description: "Unable to determine your location. Check your connection or try again.",
         variant: "destructive",
       });
       setLocationStatus("error");
@@ -406,7 +249,16 @@ const NoiseRecorder = () => {
     } else if (posError.code === 3) { // Timeout
       toast({
         title: "Location Request Timeout",
-        description: "Location request timed out. Please try again.",
+        description: "Location request timed out. Please try again in a few moments.",
+        variant: "destructive",
+      });
+      setLocationStatus("error");
+      setShowLocationError(true);
+    } else {
+      // Handle unknown errors
+      toast({
+        title: "Location Error",
+        description: `Error getting location: ${posError.message || "Unknown error"}`,
         variant: "destructive",
       });
       setLocationStatus("error");
@@ -433,14 +285,14 @@ const NoiseRecorder = () => {
 
   const handleLocationConfirmation = () => {
     try {
-      if (locationMap.current && locationMarker.current) {
-        const finalPosition = locationMarker.current.getLngLat();
+      if (leafletMap && leafletMarker) {
+        const position = leafletMarker.getLatLng();
         setLocation({
-          latitude: finalPosition.lat,
-          longitude: finalPosition.lng
+          latitude: position.lat,
+          longitude: position.lng
         });
         
-        debug(`Location confirmed at ${finalPosition.lat}, ${finalPosition.lng}`);
+        debug(`Location confirmed at ${position.lat}, ${position.lng}`);
       } else {
         console.warn("Map or marker not available during confirmation");
       }
@@ -465,12 +317,22 @@ const NoiseRecorder = () => {
   const handleLocationPermission = async () => {
     setShowPermissionDialog(false); // Hide dialog immediately to avoid confusion
     
-    const pos = await getLocationAsync();
+    const pos = await fetchUserLocation();
     
     if (!pos) {
       // If getLocationAsync failed, we'll handle this in the location error dialog
       debug("Location permission granted but couldn't get position");
     }
+  };
+
+  const retryLocationPermission = async () => {
+    setShowLocationError(false);
+    debug("Retrying location permission...");
+    
+    // Small delay to ensure UI updates before trying again
+    setTimeout(() => {
+      fetchUserLocation();
+    }, 500);
   };
 
   const skipLocationAndContinue = () => {
@@ -592,7 +454,7 @@ const NoiseRecorder = () => {
   };
 
   const submitReport = async () => {
-    if (!decibels || !location || !noiseType) {
+    if (!decibels || !noiseType) {
       toast({
         title: "Missing Information",
         description: "Please complete the measurement and fill in all required fields.",
@@ -604,16 +466,16 @@ const NoiseRecorder = () => {
     try {
       setIsSubmitting(true);
       
-      // Create the new report object
+      // Create the new report object with nullish location handling
       const newReport = {
         id: `report-${Date.now()}`, // Generate a unique ID
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: location?.latitude || null,
+        longitude: location?.longitude || null,
         decibel_level: decibels,
         noise_type: noiseType,
         notes: notes || null,
         created_at: new Date().toISOString(),
-        address: "Pune, Maharashtra", // Default address (would be geocoded in production)
+        address: location ? "Pune, Maharashtra" : "No location data", // Default address with location indicator
         status: "unresolved", // Default status
         device_info: {
           userAgent: navigator.userAgent,
@@ -622,19 +484,23 @@ const NoiseRecorder = () => {
         },
       };
       
-      // Submit to Supabase
-      const { error } = await supabase.from("noise_reports").insert({
-        latitude: location.latitude,
-        longitude: location.longitude,
+      // Prepare report data for Supabase with explicit null handling
+      const reportData = {
         decibel_level: decibels,
         noise_type: noiseType,
         notes: notes || null,
+        // Add default latitude/longitude values that indicate missing location data
+        latitude: location?.latitude ?? 0,
+        longitude: location?.longitude ?? 0,
         device_info: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,
           timestamp: new Date().toISOString(),
         },
-      });
+      };
+      
+      // Submit to Supabase
+      const { error } = await supabase.from("noise_reports").insert(reportData);
 
       if (error) throw error;
       
@@ -736,177 +602,457 @@ const NoiseRecorder = () => {
   };
 
   const renderLocationErrorDialog = () => {
+    const handleManualLocationSubmit = () => {
+      if (!manualMap || !manualMarker) {
+        toast({
+          title: "Map not initialized",
+          description: "Please search for a location or wait for the map to load",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const position = manualMarker.getLatLng();
+      const lat = position.lat;
+      const lng = position.lng;
+      
+      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        toast({
+          title: "Invalid Coordinates",
+          description: "Please select a valid location on the map.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setLocation({
+        latitude: lat,
+        longitude: lng,
+      });
+      setLocationStatus("success");
+      setShowLocationError(false);
+      setShowManualInput(false);
+      setManualMapVisible(false);
+      
+      toast({
+        title: "Location Set Manually",
+        description: "Your selected location has been saved for this noise report.",
+        variant: "default",
+      });
+      
+      startRecordingWithPermissions();
+    };
+    
+    const handleLocationSearch = async () => {
+      if (!locationSearchQuery.trim()) {
+        toast({
+          title: "Empty Search",
+          description: "Please enter a location to search",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setIsSearching(true);
+      setShowSearchResults(true);
+      
+      try {
+        const results = await geocodeLocation(locationSearchQuery);
+        setSearchResults(results);
+        
+        if (results.length === 0) {
+          toast({
+            title: "No Results",
+            description: "No locations found matching your search",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Error searching location:", error);
+        toast({
+          title: "Search Error",
+          description: "Error searching for location. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSearching(false);
+      }
+    };
+    
+    const selectSearchResult = (result: any) => {
+      const [lng, lat] = result.center;
+      
+      setManualLatitude(lat.toFixed(6));
+      setManualLongitude(lng.toFixed(6));
+      setShowSearchResults(false);
+      
+      // Show and initialize map if not already visible
+      setManualMapVisible(true);
+      
+      // Update map position in next rendering cycle
+      setTimeout(() => {
+        if (manualMap) {
+          manualMap.setView([lat, lng], 15);
+          if (manualMarker) {
+            manualMarker.setLatLng([lat, lng]);
+          }
+        } else {
+          initializeManualMap(lat, lng);
+        }
+      }, 100);
+    };
+    
+    const initializeManualMap = async (lat: number, lng: number) => {
+      if (!manualMapContainer.current) return;
+      
+      try {
+        // Import Leaflet dynamically
+        const L = await import('leaflet');
+        
+        // Ensure CSS is loaded
+        if (!document.querySelector('link[href*="leaflet.css"]')) {
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+          link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+          link.crossOrigin = '';
+          document.head.appendChild(link);
+        }
+        
+        // Fix for marker icon paths
+        delete (L.Icon.Default.prototype as any)._getIconUrl;
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+        
+        // Clean up any existing map instance
+        if (manualMap) {
+          manualMap.remove();
+          setManualMap(null);
+          setManualMarker(null);
+        }
+        
+        // Initialize map
+        const map = L.map(manualMapContainer.current).setView([lat, lng], 15);
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        // Add draggable marker with improved drag handling
+        const marker = L.marker([lat, lng], {
+          draggable: true
+        }).addTo(map);
+        
+        // Use a more efficient event handling for drag
+        let dragDebounceTimer: ReturnType<typeof setTimeout>;
+        
+        // Only update coordinates when drag ends
+        marker.on('dragend', function() {
+          const position = marker.getLatLng();
+          setManualLatitude(position.lat.toFixed(6));
+          setManualLongitude(position.lng.toFixed(6));
+        });
+        
+        // Optional: for visual feedback during drag without state updates
+        marker.on('drag', function() {
+          clearTimeout(dragDebounceTimer);
+          dragDebounceTimer = setTimeout(() => {
+            const position = marker.getLatLng();
+            document.getElementById('manual-lat')?.setAttribute('data-value', position.lat.toFixed(6));
+            document.getElementById('manual-lng')?.setAttribute('data-value', position.lng.toFixed(6));
+          }, 100);
+        });
+        
+        setManualMap(map);
+        setManualMarker(marker);
+        
+        // Force a resize to ensure proper rendering
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 100);
+        
+      } catch (error) {
+        console.error("Error loading map for manual location:", error);
+        toast({
+          title: "Map Error",
+          description: "Could not load the map. Please try again or enter coordinates manually.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    // Set up map when manual input is shown
+    useEffect(() => {
+      if (showManualInput && manualMapVisible && manualMapContainer.current && !manualMap) {
+        // Default to Pune coordinates if no location is selected
+        const defaultLat = 18.5204;
+        const defaultLng = 73.8567;
+        
+        initializeManualMap(
+          manualLatitude ? parseFloat(manualLatitude) : defaultLat,
+          manualLongitude ? parseFloat(manualLongitude) : defaultLng
+        );
+      }
+      
+      // Cleanup when dialog closes
+      return () => {
+        if (!showLocationError && manualMap) {
+          manualMap.remove();
+          setManualMap(null);
+          setManualMarker(null);
+        }
+      };
+    }, [showManualInput, manualMapVisible, showLocationError]);
+    
     return (
-      <Dialog open={showLocationError} onOpenChange={setShowLocationError}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showLocationError} onOpenChange={(open) => {
+        setShowLocationError(open);
+        if (!open) {
+          setShowManualInput(false);
+          setShowSearchResults(false);
+          setManualMapVisible(false);
+          setLocationSearchQuery("");
+          setSearchResults([]);
+        }
+      }}>
+        <DialogContent className={`${showManualInput ? "sm:max-w-3xl" : "sm:max-w-md"}`}>
           <DialogHeader>
             <DialogTitle>Location Access Issue</DialogTitle>
             <DialogDescription>
-              {locationStatus === "skipped" 
-                ? "Location access wasn't available. This can happen even when you've granted permissions in your browser."
-                : "We couldn't access your location. This might be due to browser settings or permissions."}
+              {!showManualInput ? (
+                locationStatus === "skipped" 
+                  ? "Location access wasn't available. This can happen even when you've granted permissions in your browser."
+                  : "We couldn't access your location. This might be due to browser settings or permissions."
+              ) : (
+                "Search for a location or place the marker directly on the map"
+              )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
-            <div className="flex items-center space-x-2 mb-2">
-              <AlertTriangle className="h-6 w-6 text-yellow-500" />
-              <p className="text-sm text-muted-foreground">
-                Without location data, your noise report won't appear on the map, but we'll still collect the noise level data.
-              </p>
+          
+          {showManualInput ? (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <div className="flex-grow">
+                  <Input
+                    placeholder="Search for a location (e.g. Pune, MG Road)"
+                    value={locationSearchQuery}
+                    onChange={(e) => setLocationSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleLocationSearch()}
+                  />
+                </div>
+                <Button 
+                  onClick={handleLocationSearch}
+                  disabled={isSearching || !locationSearchQuery.trim()}
+                >
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                </Button>
+              </div>
+              
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border rounded-md">
+                  {searchResults.map((result, index) => (
+                    <div 
+                      key={result.id || index}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b last:border-b-0"
+                      onClick={() => selectSearchResult(result)}
+                    >
+                      <p className="font-medium">{result.text}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{result.place_name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {manualMapVisible && (
+                <>
+                  <div 
+                    ref={manualMapContainer} 
+                    className="h-[300px] w-full rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 mt-4"
+                  ></div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <Label htmlFor="manual-lat">Latitude</Label>
+                      <Input
+                        id="manual-lat"
+                        value={manualLatitude}
+                        onChange={(e) => {
+                          setManualLatitude(e.target.value);
+                          const lat = parseFloat(e.target.value);
+                          const lng = parseFloat(manualLongitude);
+                          if (!isNaN(lat) && !isNaN(lng) && manualMarker) {
+                            manualMarker.setLatLng([lat, lng]);
+                            manualMap.setView([lat, lng]);
+                          }
+                        }}
+                        placeholder="Latitude (e.g. 18.5204)"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="manual-lng">Longitude</Label>
+                      <Input
+                        id="manual-lng"
+                        value={manualLongitude}
+                        onChange={(e) => {
+                          setManualLongitude(e.target.value);
+                          const lat = parseFloat(manualLatitude);
+                          const lng = parseFloat(e.target.value);
+                          if (!isNaN(lat) && !isNaN(lng) && manualMarker) {
+                            manualMarker.setLatLng([lat, lng]);
+                            manualMap.setView([lat, lng]);
+                          }
+                        }}
+                        placeholder="Longitude (e.g. 73.8567)"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between mt-4">
+                    <Button variant="outline" onClick={() => {
+                      setShowManualInput(false);
+                      setManualMapVisible(false);
+                    }}>
+                      Back
+                    </Button>
+                    <Button onClick={handleManualLocationSubmit}>
+                      Use This Location
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md">
-              <h4 className="font-medium text-sm mb-2">Troubleshooting tips:</h4>
-              <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-                <li>Check that location is enabled in your browser settings</li>
-                <li>Some browsers require HTTPS for location access</li>
-                <li>Try a different browser (Chrome or Firefox work best)</li>
-                <li>On mobile, check your device location permissions</li>
-              </ul>
+          ) : (
+            <div className="flex flex-col gap-4 py-2">
+              <div className="flex items-center space-x-2 mb-2">
+                <AlertTriangle className="h-6 w-6 text-yellow-500" />
+                <p className="text-sm text-muted-foreground">
+                  Without location data, your noise report won't appear on the map, but we'll still collect the noise level data.
+                </p>
+              </div>
+              
+              <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-md">
+                <h4 className="font-medium text-sm mb-2">Troubleshooting tips:</h4>
+                <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
+                  <li>Check that location is enabled in your browser settings</li>
+                  <li>Some browsers require HTTPS for location access</li>
+                  <li>Try a different browser (Chrome or Firefox work best)</li>
+                  <li>On mobile, check your device location permissions</li>
+                </ul>
+              </div>
             </div>
-          </div>
-          <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" onClick={() => {
-              setShowLocationError(false);
-              setShowPermissionDialog(false);
-              // Reset location status for future attempts
-              setLocationStatus("idle");
-            }}>
-              Cancel
-            </Button>
-            <Button variant="default" onClick={skipLocationAndContinue}>
-              Continue Without Location
-            </Button>
-            <Button variant="default" onClick={retryPermissions}>
-              Retry
-            </Button>
-          </DialogFooter>
+          )}
+          
+          {!showManualInput && (
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => {
+                setShowLocationError(false);
+                setShowPermissionDialog(false);
+                // Reset location status for future attempts
+                setLocationStatus("idle");
+              }}>
+                Cancel
+              </Button>
+              <Button variant="default" onClick={skipLocationAndContinue}>
+                Continue Without Location
+              </Button>
+              <Button variant="secondary" onClick={() => {
+                setShowManualInput(true);
+                setManualMapVisible(true);
+              }}>
+                Enter Location Manually
+              </Button>
+              <Button variant="default" onClick={retryLocationPermission}>
+                Retry
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     );
   };
 
+  // Dynamic import of Leaflet to avoid SSR issues
   useEffect(() => {
     if (isLocationMapOpen && locationMapContainer.current && location) {
-      try {
-        // Clear any previous map instance
-        if (locationMap.current) {
-          locationMap.current.remove();
-          locationMap.current = null;
-        }
-        
-        // Find the wrapper element - with proper TypeScript handling
-        const mapWrapper = locationMapContainer.current.querySelector('#mapbox-container-wrapper') as HTMLDivElement;
-        const loadingIndicator = locationMapContainer.current.querySelector('.map-loading') as HTMLDivElement;
-        
-        if (!mapWrapper) {
-          console.error("Map wrapper element not found");
-          return;
-        }
-        
-        // Always use the dedicated token for the confirmation map
-        mapboxgl.accessToken = LOCATION_MAP_TOKEN;
-        
-        // Create simplified map with minimal options
+      // Dynamically load leaflet only when needed
+      const loadLeaflet = async () => {
         try {
-          locationMap.current = new mapboxgl.Map({
-            container: mapWrapper,
-            style: "mapbox://styles/mapbox/streets-v11",
-            center: [location.longitude, location.latitude],
-            zoom: 15,
-            attributionControl: false,
-            preserveDrawingBuffer: true // Help with rendering issues
-          });
+          // Import Leaflet dynamically
+          const L = await import('leaflet');
           
-          // Hide loading indicator when map is loaded
-          locationMap.current.on('load', () => {
-            debug("Map fully loaded in location dialog");
-            if (loadingIndicator) {
-              loadingIndicator.style.display = 'none';
-            }
-            
-            // Only add marker after map is fully loaded
-            locationMarker.current = new mapboxgl.Marker({
-              draggable: true,
-              color: "#8B5CF6"
-            })
-            .setLngLat([location.longitude, location.latitude])
-            .addTo(locationMap.current);
-            
-            // Handle marker drag end
-            locationMarker.current.on('dragend', () => {
-              if (!locationMarker.current) return;
-              
-              const lngLat = locationMarker.current.getLngLat();
-              setLocation({
-                latitude: lngLat.lat,
-                longitude: lngLat.lng
-              });
-            });
-          });
+          // Import Leaflet CSS
+          if (!document.querySelector('link[href*="leaflet.css"]')) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+            link.crossOrigin = '';
+            document.head.appendChild(link);
+          }
           
-          // Force resize for proper rendering
+          // Ensure there's no existing map instance
+          if (leafletMap) {
+            leafletMap.remove();
+            setLeafletMap(null);
+            setLeafletMarker(null);
+          }
+          
+          // Initialize map
+          const map = L.map(locationMapContainer.current).setView(
+            [location.latitude, location.longitude], 
+            15
+          );
+          
+          // Add OpenStreetMap tiles
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          }).addTo(map);
+          
+          // Add draggable marker
+          const marker = L.marker([location.latitude, location.longitude], {
+            draggable: true
+          }).addTo(map);
+          
+          // Hide the loading indicator
+          const loadingElement = locationMapContainer.current.querySelector('.map-loading') as HTMLElement;
+          if (loadingElement) {
+            loadingElement.style.display = 'none';
+          }
+          
+          setLeafletMap(map);
+          setLeafletMarker(marker);
+          
+          // Force a resize to ensure proper rendering
           setTimeout(() => {
-            if (locationMap.current) {
-              locationMap.current.resize();
-              debug("Forced resize of location confirmation map");
-            }
+            map.invalidateSize();
           }, 100);
-        } catch (mapError) {
-          console.error("Error creating map instance:", mapError);
-          if (loadingIndicator) {
-            loadingIndicator.innerHTML = '<div class="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 text-center">Failed to create map</div>';
-          }
-        }
-        
-        // Add backup timeout for loading indicator and marker
-        setTimeout(() => {
-          if (loadingIndicator && loadingIndicator.style.display !== 'none') {
-            loadingIndicator.style.display = 'none';
-          }
           
-          // If marker wasn't added, try to add it now
-          if (!locationMarker.current && locationMap.current) {
-            try {
-              locationMarker.current = new mapboxgl.Marker({
-                draggable: true,
-                color: "#8B5CF6"
-              })
-              .setLngLat([location.longitude, location.latitude])
-              .addTo(locationMap.current);
-            } catch (markerError) {
-              console.error("Error adding marker after timeout:", markerError);
-            }
+        } catch (error) {
+          console.error("Error loading Leaflet:", error);
+          
+          // Show error message
+          if (locationMapContainer.current) {
+            locationMapContainer.current.innerHTML = `
+              <div class="p-4 text-center bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 rounded-md">
+                Map failed to load. You can still confirm your location using coordinates.
+              </div>
+            `;
           }
-        }, 3000);
-        
-        // Show error if map fails to load
-        if (locationMap.current) {
-          locationMap.current.on('error', (e) => {
-            console.error("Mapbox error:", e);
-            
-            if (loadingIndicator) {
-              loadingIndicator.innerHTML = '<div class="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 text-center">Map failed to load</div>';
-            }
-          });
         }
-      } catch (error) {
-        console.error("Error initializing map:", error);
-        
-        // Still try to show a basic message
-        const loadingIndicator = locationMapContainer.current?.querySelector('.map-loading') as HTMLDivElement;
-        if (loadingIndicator) {
-          loadingIndicator.innerHTML = '<div class="p-4 bg-red-50 dark:bg-red-900/20 text-red-500 text-center">Map initialization failed</div>';
-        }
-      }
+      };
       
+      loadLeaflet();
+      
+      // Cleanup
       return () => {
-        if (locationMap.current) {
-          locationMap.current.remove();
-          locationMap.current = null;
-        }
-        if (locationMarker.current) {
-          locationMarker.current = null;
+        if (leafletMap) {
+          leafletMap.remove();
+          setLeafletMap(null);
+          setLeafletMarker(null);
         }
       };
     }
@@ -917,17 +1063,18 @@ const NoiseRecorder = () => {
 
     // Generate static map URL for faster initial display
     const generateStaticMapUrl = (lat: number, lng: number) => {
-      // Use the dedicated token for the static map as well
-      return `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-s+8B5CF6(${lng},${lat})/${lng},${lat},14,0/400x400@2x?access_token=${LOCATION_MAP_TOKEN}`;
+      // Use OpenStreetMap static image API
+      return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=14&size=400x400&markers=${lat},${lng},purple-pushpin`;
     };
 
     return (
       <Dialog open={isLocationMapOpen} onOpenChange={(open) => {
         if (!open) {
           // Clean up map when dialog closes
-          if (locationMap.current) {
-            locationMap.current.remove();
-            locationMap.current = null;
+          if (leafletMap) {
+            leafletMap.remove();
+            setLeafletMap(null);
+            setLeafletMarker(null);
           }
           setIsLocationMapOpen(false);
         }
@@ -957,6 +1104,7 @@ const NoiseRecorder = () => {
                   display: "block",
                   position: "relative",
                   minHeight: "400px",
+                  backgroundColor: '#f0f0f0',
                   backgroundImage: location ? `url(${generateStaticMapUrl(location.latitude, location.longitude)})` : 'none',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center'
@@ -969,9 +1117,6 @@ const NoiseRecorder = () => {
                     <p className="text-sm text-gray-700 dark:text-gray-300">Loading interactive map...</p>
                   </div>
                 </div>
-
-                {/* This wrapper ensures the map renders correctly */}
-                <div className="absolute inset-0 w-full h-full" id="mapbox-container-wrapper"></div>
               </div>
             )}
           </div>
@@ -982,7 +1127,7 @@ const NoiseRecorder = () => {
                 <Button variant="outline" onClick={() => setIsLocationMapOpen(false)}>
                   Continue Without Location
                 </Button>
-                <Button onClick={retryPermissions}>
+                <Button onClick={retryLocationPermission}>
                   Try Again
                 </Button>
               </>

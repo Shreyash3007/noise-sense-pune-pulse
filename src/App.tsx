@@ -1,9 +1,9 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { checkDatabaseConnection } from "./integrations/supabase/client";
@@ -11,6 +11,36 @@ import LoadingLogo from "./components/LoadingLogo";
 import { AnimatePresence } from "framer-motion";
 import AIChatWidget from "./components/AIChatWidget";
 import NoiseAwarenessPopup from "./components/NoiseAwarenessPopup";
+
+// Add a LocationAware component to conditionally render popups based on current path
+const LocationAwarePopup = () => {
+  const location = useLocation();
+  
+  // Don't show the popup on the admin portal
+  if (location.pathname.includes('/admin')) {
+    return null;
+  }
+  
+  return <NoiseAwarenessPopup />;
+};
+
+// Protected Route component for secure admin access
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+}
+
+const ProtectedAdminRoute = ({ children }: ProtectedRouteProps) => {
+  // Check if user is authenticated
+  const isAuthenticated = localStorage.getItem("isAdminAuthenticated") === "true";
+  
+  // If not authenticated, redirect to login
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  
+  // If authenticated, show the requested page
+  return <>{children}</>;
+};
 
 // Import theme styles
 import "./styles/theme.css";
@@ -112,7 +142,11 @@ const App = () => {
                     <Route path="/" element={<Index />} />
                     <Route path="/map" element={<AnalyticsDashboard />} />
                     <Route path="/about" element={<About />} />
-                    <Route path="/admin" element={<AdminPortal />} />
+                    <Route path="/admin" element={
+                      <ProtectedAdminRoute>
+                        <AdminPortal />
+                      </ProtectedAdminRoute>
+                    } />
                     <Route path="/admin/login" element={<AdminLogin />} />
                     <Route path="/record" element={<RecordPage />} />
                     <Route path="/theme" element={<ThemePreview />} />
@@ -126,7 +160,7 @@ const App = () => {
               </AnimatePresence>
             </MainLayout>
             {/* <AIChatWidget /> */}
-            <NoiseAwarenessPopup />
+            <LocationAwarePopup />
           </BrowserRouter>
         </TooltipProvider>
       </ThemeProvider>

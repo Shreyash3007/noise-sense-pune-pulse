@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LockKeyhole, ShieldAlert, User } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LockKeyhole, ShieldAlert, User, Save } from "lucide-react";
 
 // Admin credentials - in a real app, this would be handled securely on the backend
 const ADMIN_USERNAME = "admin";
@@ -17,7 +18,23 @@ const AdminLogin = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [trustDevice, setTrustDevice] = useState(false);
   const navigate = useNavigate();
+
+  // Check if there's stored authentication
+  useEffect(() => {
+    // Check for trusted device authentication
+    const trustedAuth = localStorage.getItem("adminTrustedAuth");
+    if (trustedAuth === "true") {
+      const storedUsername = localStorage.getItem("adminUsername");
+      if (storedUsername) {
+        // Auto-login for trusted devices
+        localStorage.setItem("isAdminAuthenticated", "true");
+        localStorage.setItem("adminLoginTime", new Date().toISOString());
+        navigate("/admin");
+      }
+    }
+  }, [navigate]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +48,11 @@ const AdminLogin = () => {
         localStorage.setItem("isAdminAuthenticated", "true");
         localStorage.setItem("adminUsername", username);
         localStorage.setItem("adminLoginTime", new Date().toISOString());
+        
+        // Set trusted device flag if checkbox is checked
+        if (trustDevice) {
+          localStorage.setItem("adminTrustedAuth", "true");
+        }
         
         // Redirect to admin portal
         navigate("/admin");
@@ -99,6 +121,20 @@ const AdminLogin = () => {
                     required
                   />
                 </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="trustDevice" 
+                  checked={trustDevice}
+                  onCheckedChange={(checked) => setTrustDevice(!!checked)} 
+                />
+                <Label 
+                  htmlFor="trustDevice" 
+                  className="text-sm cursor-pointer flex items-center"
+                >
+                  <Save className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  Trust this device (auto-login next time)
+                </Label>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Authenticating..." : "Login to Admin Portal"}

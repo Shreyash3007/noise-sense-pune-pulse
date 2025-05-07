@@ -84,31 +84,106 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_R
 }
 
 /**
- * Get advanced analytics from NoiseSense AI
+ * Get advanced analytics from OpenRouter AI
  * 
  * @param noiseReports Array of noise reports to analyze
- * @returns Promise with NoiseSense AI analytics data
+ * @returns Promise with AI analytics data formatted for the admin portal
  */
-export async function getNoiseSenseAIAnalytics(noiseReports: NoiseReport[]): Promise<NoiseSenseAIAnalytics> {
+export async function getNoiseSenseAIAnalytics(noiseReports: NoiseReport[]): Promise<any> {
   try {
-    // Always use the real API instead of simulated data
-    console.log("Using real NoiseSense AI API for analytics");
-    const response = await fetch(`${NOISESENSE_AI_API_ENDPOINT}/analyze`, {
+    debug("Using real OpenRouter AI for analytics");
+    
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OpenRouter API key is missing. Please configure your API key.');
+    }
+    
+    // Create a system prompt for analytics
+    const systemPrompt = `You are NoiseSense AI, an advanced noise pollution analytics system. 
+    Analyze the provided noise report data and generate insights, correlations, anomaly detection, and time distribution analysis.
+    Format your response as a JSON object with the following structure:
+    {
+      "categories": [
+        { "category": "string", "count": number, "percentage": number, "predictionNextMonth": number, "riskScore": number }
+      ],
+      "timeDistribution": [
+        { "period": "string", "count": number }
+      ],
+      "anomalies": [
+        { "title": "string", "description": "string", "impact": "string", "date": "string" }
+      ],
+      "correlations": [
+        { "factor": "string", "correlationStrength": number, "description": "string" }
+      ],
+      "totalReportsAnalyzed": number,
+      "averageNoiseLevel": number,
+      "noiseLevelTrend": "string",
+      "hottestTimeOfDay": "string",
+      "hottestDayOfWeek": "string",
+      "generatedAt": "string"
+    }`;
+    
+    // Create a slice of the reports to avoid token limits
+    const sampleReports = noiseReports.slice(0, Math.min(50, noiseReports.length));
+    
+    // Create a summary of the reports for the LLM
+    const reportSummary = `
+    Total reports: ${noiseReports.length}
+    Average noise level: ${(noiseReports.reduce((sum, r) => sum + r.decibel_level, 0) / noiseReports.length).toFixed(1)} dB
+    Noise types: ${Object.entries(noiseReports.reduce((acc, r) => {
+      acc[r.noise_type] = (acc[r.noise_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>)).map(([type, count]) => `${type} (${count})`).join(', ')}
+    Sample of reports: ${JSON.stringify(sampleReports)}
+    `;
+    
+    // Make request to OpenRouter
+    const response = await fetchWithRetry(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${NOISESENSE_AI_API_KEY}`
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://noise-sense-app.com',
+        'X-Title': 'NoiseSense Admin Portal'
       },
-      body: JSON.stringify({ noiseReports })
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Analyze these noise reports and provide insights: ${reportSummary}` }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
     });
-
+    
     if (!response.ok) {
-      throw new Error(`NoiseSense AI API error: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error("OpenRouter API error:", errorData);
+      throw new Error(`AI API error: ${response.status} ${response.statusText}`);
     }
-
-    return await response.json();
+    
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error("Invalid response from OpenRouter API");
+    }
+    
+    const aiResponse = data.choices[0].message.content;
+    
+    // Extract JSON from the response
+    try {
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const analytics = JSON.parse(jsonMatch[0]);
+        return analytics;
+      }
+      throw new Error("Could not extract valid JSON from AI response");
+    } catch (jsonError) {
+      console.error("Error parsing AI response:", jsonError);
+      throw new Error("Failed to parse AI response");
+    }
   } catch (error) {
-    console.error("Error fetching NoiseSense AI analytics:", error);
+    console.error("Error fetching AI analytics:", error);
     console.warn("API error occurred, falling back to simulated data as a last resort");
     return generateSimulatedAnalytics(noiseReports); // Fallback to simulated data only on error
   }
@@ -226,32 +301,76 @@ function generateSimulatedAnalytics(noiseReports: NoiseReport[]): NoiseSenseAIAn
 }
 
 /**
- * Get natural language recommendations from NoiseSense AI
+ * Get AI recommendations based on noise reports
  * 
  * @param noiseReports Array of noise reports to analyze
- * @returns Promise with recommendations text
+ * @returns Promise with recommendation text
  */
 export async function getNoiseSenseAIRecommendations(noiseReports: NoiseReport[]): Promise<string> {
   try {
-    // Always use the real API instead of simulated data
-    console.log("Using real NoiseSense AI API for recommendations");
-    const response = await fetch(`${NOISESENSE_AI_API_ENDPOINT}/recommend`, {
+    debug("Using real OpenRouter AI for recommendations");
+    
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OpenRouter API key is missing. Please configure your API key.');
+    }
+    
+    // Create a system prompt for recommendations
+    const systemPrompt = `You are NoiseSense AI, an advanced noise pollution analytics system.
+    Based on the provided noise report data, generate comprehensive recommendations for noise pollution mitigation.
+    Include specific actionable steps, policy recommendations, and intervention strategies.
+    Format your response as detailed markdown text with sections for different recommendation categories.`;
+    
+    // Create a slice of the reports to avoid token limits
+    const sampleReports = noiseReports.slice(0, Math.min(50, noiseReports.length));
+    
+    // Create a summary of the reports for the LLM
+    const reportSummary = `
+    Total reports: ${noiseReports.length}
+    Average noise level: ${(noiseReports.reduce((sum, r) => sum + r.decibel_level, 0) / noiseReports.length).toFixed(1)} dB
+    Noise types: ${Object.entries(noiseReports.reduce((acc, r) => {
+      acc[r.noise_type] = (acc[r.noise_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>)).map(([type, count]) => `${type} (${count})`).join(', ')}
+    Sample of reports: ${JSON.stringify(sampleReports)}
+    `;
+    
+    // Make request to OpenRouter
+    const response = await fetchWithRetry(OPENROUTER_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${NOISESENSE_AI_API_KEY}`
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://noise-sense-app.com',
+        'X-Title': 'NoiseSense Admin Portal'
       },
-      body: JSON.stringify({ noiseReports })
+      body: JSON.stringify({
+        model: AI_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Generate recommendations based on these noise reports: ${reportSummary}` }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
     });
-
+    
     if (!response.ok) {
-      throw new Error(`NoiseSense AI API error: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error("OpenRouter API error:", errorData);
+      throw new Error(`AI API error: ${response.status} ${response.statusText}`);
     }
-
+    
     const data = await response.json();
-    return data.recommendation;
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error("Invalid response from OpenRouter API");
+    }
+    
+    const recommendations = data.choices[0].message.content;
+    return recommendations;
+    
   } catch (error) {
-    console.error("Error fetching NoiseSense AI recommendations:", error);
+    console.error("Error fetching AI recommendations:", error);
     console.warn("API error occurred, falling back to simulated data as a last resort");
     return generateSimulatedRecommendations(noiseReports); // Fallback to simulated data only on error
   }

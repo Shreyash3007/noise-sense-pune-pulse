@@ -101,7 +101,8 @@ import { useNavigate } from 'react-router-dom';
 import { NoiseAnalyticsAdvanced } from "@/components/charts/NoiseAnalyticsAdvanced";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { getAIAnalytics, getAIRecommendations, chatWithAI } from '@/lib/mock-data';
+import { chatWithAI } from '@/lib/mock-data';
+import { getNoiseSenseAIAnalytics as getAIAnalytics, getNoiseSenseAIRecommendations as getAIRecommendations } from '@/integrations/noisesense-ai/client';
 import { PUNE_AREAS } from '@/lib/mock-data';
 import ReactMarkdown from 'react-markdown';
 import { format } from 'date-fns';
@@ -232,8 +233,14 @@ const AdminPortal: React.FC = () => {
 
   // Check authentication
   useEffect(() => {
+    // Always check authentication status
     const isAuthenticated = localStorage.getItem("isAdminAuthenticated") === "true";
     if (!isAuthenticated) {
+      // Clear any stale auth data
+      localStorage.removeItem("adminUsername");
+      localStorage.removeItem("adminLoginTime");
+      
+      // Redirect to login page
       navigate("/admin/login");
     }
   }, [navigate]);
@@ -979,9 +986,11 @@ const AdminPortal: React.FC = () => {
             size="sm" 
             variant="outline"
             onClick={() => {
+              // Clear all authentication data including trusted device
               localStorage.removeItem("isAdminAuthenticated");
               localStorage.removeItem("adminUsername");
               localStorage.removeItem("adminLoginTime");
+              localStorage.removeItem("adminTrustedAuth");
               navigate("/admin/login");
             }}
           >
