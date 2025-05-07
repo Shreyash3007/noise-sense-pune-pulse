@@ -250,28 +250,8 @@ const AdminPortal: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Check if we already have stored data in localStorage
-        const storedReports = localStorage.getItem('noiseReports');
-        
-        if (storedReports && storedReports !== "undefined" && storedReports.length > 10) {
-          try {
-            const parsedReports = JSON.parse(storedReports);
-            if (Array.isArray(parsedReports) && parsedReports.length > 0) {
-              setNoiseReports(parsedReports);
-              setLoading(false);
-              
-              // After fetching reports data, load AI insights
-              loadAIInsights(parsedReports);
-              return;
-            }
-          } catch (parseError) {
-            console.error("Error parsing stored reports:", parseError);
-            // Continue to generate mock data
-          }
-        }
-        
-        // Generate mock data if no valid stored data
-        console.log("Generating mock data for admin portal");
+        // Force generate new mock data
+        console.log("Generating fresh mock data for admin portal");
         const { generatePuneNoiseData } = await import('@/lib/mock-data');
         const mockData = generatePuneNoiseData(500);
         
@@ -279,17 +259,16 @@ const AdminPortal: React.FC = () => {
         localStorage.setItem('noiseReports', JSON.stringify(mockData));
         
         setNoiseReports(mockData);
-        setLoading(false);
+        setFilteredReports(mockData);
         
         // After fetching reports data, load AI insights
         loadAIInsights(mockData);
-        
       } catch (err) {
-        console.error("Failed to load or generate noise reports data:", err);
+        console.error("Failed to generate noise reports data:", err);
         
         // Final fallback - create basic mock data directly
         try {
-          const basicMockData = Array(50).fill(null).map((_, i) => ({
+          const basicMockData = Array(200).fill(null).map((_, i) => ({
             id: `report-fallback-${i}`,
             latitude: 18.52 + (Math.random() * 0.1),
             longitude: 73.85 + (Math.random() * 0.1),
@@ -297,15 +276,18 @@ const AdminPortal: React.FC = () => {
             noise_type: ["Traffic", "Construction", "Industrial", "Loudspeakers", "Vehicle Horn"][Math.floor(Math.random() * 5)],
             created_at: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
             notes: "Generated fallback data",
-            status: "pending",
+            address: `Address ${i}, Pune`,
+            status: ["pending", "resolved", "in-progress"][Math.floor(Math.random() * 3)],
+            flagged: Math.random() > 0.8,
           }));
           
           setNoiseReports(basicMockData);
+          setFilteredReports(basicMockData);
           localStorage.setItem('noiseReports', JSON.stringify(basicMockData));
         } catch (fallbackErr) {
           setError("Failed to load or generate noise reports data");
         }
-        
+      } finally {
         setLoading(false);
       }
     };
@@ -3359,7 +3341,10 @@ const AdminPortal: React.FC = () => {
                                     time: timeStr,
                                     avgLevel: report.decibel_level,
                                     maxLevel: report.decibel_level + 5,
-                                    minLevel: Math.max(report.decibel_level - 8, 0)
+                                    minLevel: Math.max(report.decibel_level - 8, 0),
+                                    range: 10, // Add required property
+                                    count: 1,  // Add required property
+                                    primaryNoiseType: report.noise_type // Add required property
                                   };
                                 })}
                                 height={300}
