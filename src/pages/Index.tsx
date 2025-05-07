@@ -331,7 +331,7 @@ const LandingPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
               >
-                Monitor <span className="text-blue-200">Noise Pollution</span> in Your Community
+                Detect <span className="text-blue-200">Noise Pollution</span> in Your Community
               </motion.h1>
               
               <motion.p 
