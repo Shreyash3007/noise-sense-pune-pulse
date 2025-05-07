@@ -204,7 +204,41 @@ function generateNote(noiseType: string): string {
 export function generatePuneNoiseData(count: number = 500): NoiseReport[] {
   const reports: NoiseReport[] = [];
   
-  for (let i = 0; i < count; i++) {
+  // Ensure we have a variety of noise types for charts
+  const ensureNoiseTypes = ['Traffic', 'Construction', 'Industrial', 'Loudspeakers', 'Events', 'Music', 'Vehicle Horn'];
+  const ensureStatuses = ['pending', 'resolved', 'investigating', 'escalated', 'in-progress'];
+  
+  // Generate guaranteed variety first
+  for (let i = 0; i < ensureNoiseTypes.length; i++) {
+    const noiseType = ensureNoiseTypes[i];
+    const status = ensureStatuses[i % ensureStatuses.length];
+    const { lat, lng, address } = generateBiasedLocation();
+    
+    // Generate varied noise levels for good chart distribution
+    const decibelLevel = 40 + (i * 10); // 40, 50, 60, 70, 80, 90, 100
+    
+    // Create reports with different dates for time series
+    const daysAgo = i * 5; // 0, 5, 10, 15, etc.
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    
+    reports.push({
+      id: `report-guaranteed-${i + 1}`,
+      latitude: lat,
+      longitude: lng,
+      decibel_level: decibelLevel,
+      noise_type: noiseType,
+      created_at: date.toISOString(),
+      notes: `Sample ${noiseType} noise report with ${decibelLevel}dB level`,
+      address: address,
+      reported_by: generateReporterName(),
+      status: status,
+      flagged: i % 3 === 0 // Some flagged for variety
+    });
+  }
+  
+  // Fill the rest with random data
+  for (let i = ensureNoiseTypes.length; i < count; i++) {
     // Generate location and associated noise type
     const { lat, lng, address, noiseType } = generateBiasedLocation();
     
@@ -228,6 +262,17 @@ export function generatePuneNoiseData(count: number = 500): NoiseReport[] {
       flagged: Math.random() < 0.15 // 15% are flagged
     });
   }
+  
+  // Debug check to ensure data quality
+  console.log(`Generated ${reports.length} reports`);
+  console.log(`Noise type distribution:`, reports.reduce((acc, r) => {
+    acc[r.noise_type] = (acc[r.noise_type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>));
+  console.log(`Status distribution:`, reports.reduce((acc, r) => {
+    acc[r.status || 'unknown'] = (acc[r.status || 'unknown'] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>));
   
   return reports;
 }
