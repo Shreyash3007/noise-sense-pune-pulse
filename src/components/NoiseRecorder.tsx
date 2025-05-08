@@ -845,16 +845,16 @@ const NoiseRecorder = () => {
         },
       };
       
-      // Prepare report data for Supabase with only fields that exist in the schema
+      // Prepare report data for Supabase with ONLY fields that exist in the database schema
       const reportData = {
         decibel_level: decibels,
         noise_type: noiseType,
         notes: notes || null,
-        // Add default latitude/longitude values that indicate missing location data
         latitude: location?.latitude ?? 0,
         longitude: location?.longitude ?? 0,
         created_at: now.toISOString(),
-        // Remove time_data and device_info fields as they don't exist in the schema
+        duration_seconds: 10, // The standard recording duration
+        // Explicitly exclude time_data as it doesn't exist in the schema
       };
       
       console.log("Submitting report data:", reportData);
@@ -1166,6 +1166,11 @@ const NoiseRecorder = () => {
           map.invalidateSize();
         }, 100);
         
+        // Optional: Trigger a resize to ensure the map renders correctly
+        if (map) {
+          window.google.maps.event.trigger(map, 'resize');
+        }
+        
       } catch (error) {
         console.error("Error loading map for manual location:", error);
         toast({
@@ -1438,7 +1443,7 @@ const NoiseRecorder = () => {
           if (map && isMountedRef.current) {
             const currentCenter = map.getCenter();
             if (currentCenter) {
-              google.maps.event.trigger(map, 'resize');
+              window.google.maps.event.trigger(map, 'resize');
               map.setCenter(currentCenter);
             }
           }
