@@ -95,7 +95,7 @@ const loadGoogleMapsAPI = (): Promise<void> => {
           window.initGoogleMaps = undefined;
           loadGoogleMapsAPI().then(resolve).catch(reject);
         }
-      }, 5000); // 5 second timeout
+      }, 5000);
       
       window.initGoogleMaps = () => {
         clearTimeout(timeoutId);
@@ -553,24 +553,27 @@ const NoiseRecorder = () => {
   const handleLocationConfirmation = () => {
     try {
       if (googleMap && googleMarker) {
-        const position = googleMarker.getPosition();
-        if (position) {
-          setLocation({
-            latitude: position.lat(),
-            longitude: position.lng()
-          });
-          
-          geoDebug(`Location confirmed at ${position.lat()}, ${position.lng()}`);
+        try {
+          const position = googleMarker.getPosition();
+          if (position) {
+            setLocation({
+              latitude: position.lat(),
+              longitude: position.lng()
+            });
+            
+            geoDebug(`Location confirmed at ${position.lat()}, ${position.lng()}`);
+          }
+        } catch (e) {
+          console.warn("Error getting marker position:", e);
+          // Continue with current location data (don't block the user)
         }
-      } else {
-        console.warn("Map or marker not available during confirmation");
       }
       
       setIsLocationMapOpen(false);
       
       toast({
         title: "Location Confirmed",
-        description: "Your location has been confirmed and will be used for the noise report.",
+        description: "Your location has been saved for the noise report.",
         variant: "default",
       });
       
@@ -1376,139 +1379,205 @@ const NoiseRecorder = () => {
     try {
       setMapLoadingStatus("loading");
       
-      await loadGoogleMapsAPI();
-      
+      // First check if map container exists
       if (!mapRef.current) {
         console.error("Map container ref not available");
         setMapLoadingStatus("error");
         return;
       }
       
-      // Create map instance
-      const mapOptions = {
-        center: {
-          lat: location?.latitude || 18.5204,
-          lng: location?.longitude || 73.8567
-        },
-        zoom: 15,
-        zoomControl: true,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: "off" }]
-          }
-        ]
-      };
-      
-      const map = new window.google.maps.Map(mapRef.current, mapOptions);
-      setGoogleMap(map);
-      
-      // Create marker with simplified animation
-      const marker = new window.google.maps.Marker({
-        position: { lat: location?.latitude || 18.5204, lng: location?.longitude || 73.8567 },
-        map,
-        draggable: true,
-        // Skip animation for faster rendering
-        title: "Your location"
-      });
-      
-      // Add event listener for marker drag with debouncing
-      let debounceTimeout: number;
-      marker.addListener('dragend', () => {
-        clearTimeout(debounceTimeout);
-        debounceTimeout = window.setTimeout(() => {
-          const position = marker.getPosition();
-          if (position) {
-            geoDebug(`Marker dragged to: ${position.lat()}, ${position.lng()}`);
-          }
-        }, 100) as unknown as number;
-      });
-      
-      // Hide loading indicator
-      const loadingElement = mapRef.current.querySelector('.map-loading') as HTMLElement;
-      if (loadingElement) {
-        loadingElement.style.display = 'none';
-      }
-      
-      if (isMountedRef.current) {
-        setGoogleMarker(marker);
-        setMapLoadingStatus("success");
-        
-        // Force a rerender of the map if it appears blank
-        setTimeout(() => {
-          if (map && isMountedRef.current) {
-            const currentCenter = map.getCenter();
-            if (currentCenter) {
-              window.google.maps.event.trigger(map, 'resize');
-              map.setCenter(currentCenter);
-            }
-          }
-        }, 300);
-      }
-      
-      geoDebug("Google Maps initialized successfully");
-    } catch (error) {
-      console.error("Error initializing Google Maps:", error);
-      geoDebug("Error initializing Google Maps:", error);
-      
-      if (isMountedRef.current) {
-        setMapLoadingStatus("success"); // Still mark as success to hide the loading indicator
-      }
-      
-      // Show high-quality static map as fallback
-      if (mapRef.current && location) {
-        // Display a responsive static map with multiple markers if needed
+      // Create a simple static map as fallback immediately for better UX
+      if (location) {
         const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${location.latitude},${location.longitude}&zoom=15&size=800x600&scale=2&markers=color:red%7C${location.latitude},${location.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
         
-        mapRef.current.innerHTML = `
-          <div class="relative w-full h-full">
-            <img 
-              src="${staticMapUrl}" 
-              alt="Location map" 
-              class="w-full h-full object-cover rounded-md"
-            />
-            <div class="absolute bottom-4 right-4">
-              <button class="px-3 py-1 bg-white/90 dark:bg-gray-800/90 rounded-md shadow-md text-sm" 
-                onclick="window.dispatchEvent(new CustomEvent('retry-map-load'))">
-                Try Interactive Map
-              </button>
-            </div>
-          </div>
-        `;
-        
-        // Add event listener for retry button with proper cleanup
-        const handleRetryMap = () => {
-          if (mapRef.current && isMountedRef.current) {
-            // Clear the container
-            mapRef.current.innerHTML = `
-              <div class="absolute inset-0 flex items-center justify-center bg-gray-50/30 dark:bg-gray-900/30 z-10 map-loading">
-                <div class="flex flex-col items-center bg-white/80 dark:bg-black/50 p-3 rounded-lg">
-                  <div className="h-8 w-8 border-4 border-t-purple-500 rounded-full animate-spin mb-2"></div>
-                  <p class="text-sm text-gray-700 dark:text-gray-300">Loading map...</p>
-                </div>
-              </div>
-            `;
-            // Try loading the map again
-            initializeMap();
-          }
-        };
-        
-        // Clean up old listener if it exists
-        window.removeEventListener('retry-map-load', handleRetryMap);
-        // Add new listener
-        window.addEventListener('retry-map-load', handleRetryMap);
-        
-        // Clean up listener when component unmounts
-        return () => {
-          window.removeEventListener('retry-map-load', handleRetryMap);
-        };
+        // Set static map as background while loading the interactive map
+        mapRef.current.style.backgroundImage = `url(${staticMapUrl})`;
+        mapRef.current.style.backgroundSize = 'cover';
+        mapRef.current.style.backgroundPosition = 'center';
       }
       
-      return null;
+      // Try loading Google Maps API with timeout
+      let mapLoaded = false;
+      
+      try {
+        // Set a timeout for Google Maps loading
+        const loadMapPromise = loadGoogleMapsAPI();
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Google Maps load timeout")), 8000);
+        });
+        
+        // Race between actual loading and timeout
+        await Promise.race([loadMapPromise, timeoutPromise]);
+        mapLoaded = true;
+      } catch (error) {
+        console.error("Error loading Google Maps API:", error);
+        geoDebug("Google Maps API load error:", error);
+        
+        // Continue with fallback
+        mapLoaded = false;
+      }
+      
+      // If Google Maps didn't load, show static map with proper error
+      if (!mapLoaded || !window.google?.maps) {
+        setMapLoadingStatus("error");
+        
+        // Show static map with error message
+        if (mapRef.current && location) {
+          const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${location.latitude},${location.longitude}&zoom=15&size=800x600&scale=2&markers=color:red%7C${location.latitude},${location.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+          
+          mapRef.current.innerHTML = `
+            <div class="relative w-full h-full">
+              <img 
+                src="${staticMapUrl}" 
+                alt="Location map" 
+                class="w-full h-full object-cover rounded-md"
+              />
+              <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center text-sm">
+                Interactive map unavailable. Using static map instead.
+              </div>
+            </div>
+          `;
+        }
+        
+        return;
+      }
+      
+      // If code reaches here, Google Maps loaded successfully
+      
+      // Create map instance with defensive checks
+      try {
+        if (!window.google?.maps?.Map) {
+          throw new Error("Google Maps constructor not available");
+        }
+        
+        const mapOptions = {
+          center: {
+            lat: location?.latitude || 18.5204,
+            lng: location?.longitude || 73.8567
+          },
+          zoom: 15,
+          zoomControl: true,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          styles: [
+            {
+              featureType: "poi",
+              elementType: "labels",
+              stylers: [{ visibility: "off" }]
+            }
+          ]
+        };
+        
+        const map = new window.google.maps.Map(mapRef.current, mapOptions);
+        setGoogleMap(map);
+        
+        // Wait a small delay to ensure map is initialized
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Create marker with simplified animation
+        if (window.google?.maps?.Marker) {
+          const marker = new window.google.maps.Marker({
+            position: { lat: location?.latitude || 18.5204, lng: location?.longitude || 73.8567 },
+            map,
+            draggable: true,
+            title: "Your location"
+          });
+          
+          if (isMountedRef.current) {
+            setGoogleMarker(marker);
+          }
+        } else {
+          console.error("Google Maps Marker constructor not available");
+        }
+      
+        // Hide loading indicator
+        if (mapRef.current) {
+          const loadingElement = mapRef.current.querySelector('.map-loading') as HTMLElement;
+          if (loadingElement) {
+            loadingElement.style.display = 'none';
+          }
+        }
+        
+        if (isMountedRef.current) {
+          setMapLoadingStatus("success");
+          
+          // Force a rerender of the map if it appears blank - with additional checks
+          setTimeout(() => {
+            try {
+              if (map && isMountedRef.current && window.google?.maps?.event) {
+                const currentCenter = map.getCenter();
+                if (currentCenter) {
+                  window.google.maps.event.trigger(map, 'resize');
+                  map.setCenter(currentCenter);
+                }
+              }
+            } catch (err) {
+              console.error("Error during map resize:", err);
+              // Continue without crashing
+            }
+          }, 300);
+        }
+        
+        geoDebug("Google Maps initialized successfully");
+      } catch (mapInitError) {
+        console.error("Error initializing Google Maps components:", mapInitError);
+        setMapLoadingStatus("error");
+        
+        // Fallback to static map
+        if (mapRef.current && location) {
+          const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${location.latitude},${location.longitude}&zoom=15&size=800x600&scale=2&markers=color:red%7C${location.latitude},${location.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+          
+          mapRef.current.innerHTML = `
+            <div class="relative w-full h-full">
+              <img 
+                src="${staticMapUrl}" 
+                alt="Location map" 
+                class="w-full h-full object-cover rounded-md"
+              />
+              <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center text-sm">
+                Interactive map unavailable. Using static map instead.
+              </div>
+            </div>
+          `;
+        }
+      }
+    } catch (error) {
+      console.error("Unexpected error in map initialization:", error);
+      geoDebug("Unexpected error in map initialization:", error);
+      
+      if (isMountedRef.current) {
+        setMapLoadingStatus("error");
+      }
+      
+      // Final fallback - always provide a usable UI
+      if (mapRef.current && location) {
+        try {
+          const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${location.latitude},${location.longitude}&zoom=15&size=800x400&scale=2&markers=color:red%7C${location.latitude},${location.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+          
+          mapRef.current.innerHTML = `
+            <div class="relative w-full h-full">
+              <img 
+                src="${staticMapUrl}" 
+                alt="Location map" 
+                class="w-full h-full object-cover rounded-md"
+              />
+              <div class="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 text-center text-sm">
+                Interactive map unavailable.
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          // Emergency fallback if even the static map fails
+          if (mapRef.current) {
+            mapRef.current.innerHTML = `
+              <div class="flex items-center justify-center h-full w-full bg-gray-100 dark:bg-gray-800">
+                <p class="text-center">Map loading failed.<br>You can continue without confirming location.</p>
+              </div>
+            `;
+          }
+        }
+      }
     }
   };
   
@@ -1848,12 +1917,6 @@ const NoiseRecorder = () => {
             <p className="text-sm text-gray-500 dark:text-gray-400">
               You can view it on the map along with other noise reports.
             </p>
-            <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-md">
-              <p className="text-sm font-medium mb-1">Recommended Department:</p>
-              <p className="font-bold text-purple-600 dark:text-purple-400">
-                {localStorage.getItem('lastReportDepartment') || 'PMC (Pune Municipal Corporation)'}
-              </p>
-            </div>
           </div>
           
           <DialogFooter className="sm:justify-center gap-3 flex-col sm:flex-row">
@@ -1873,14 +1936,12 @@ const NoiseRecorder = () => {
               type="button" 
               variant="outline" 
               onClick={() => {
-                const department = localStorage.getItem('lastReportDepartment') || 'PMC';
-                const deptUrl = getDepartmentUrl(department);
-                window.open(deptUrl, '_blank');
                 setShowSuccessDialog(false);
+                navigate('/about');
               }}
               className="w-full sm:w-auto"
             >
-              Forward to Department
+              Learn More About Noise Pollution
             </Button>
           </DialogFooter>
         </DialogContent>
