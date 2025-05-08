@@ -819,7 +819,7 @@ const NoiseRecorder = () => {
         hour >= 12 && hour < 17 ? "Afternoon" :
         hour >= 17 && hour < 22 ? "Evening" : "Night";
       
-      // Create the new report object with enhanced time data
+      // Create the new report object with enhanced time data for localStorage only
       const newReport = {
         id: `report-${Date.now()}`, // Generate a unique ID
         latitude: location?.latitude || null,
@@ -845,7 +845,7 @@ const NoiseRecorder = () => {
         },
       };
       
-      // Prepare report data for Supabase with proper handling of JSON fields
+      // Prepare report data for Supabase with only fields that exist in the schema
       const reportData = {
         decibel_level: decibels,
         noise_type: noiseType,
@@ -854,20 +854,7 @@ const NoiseRecorder = () => {
         latitude: location?.latitude ?? 0,
         longitude: location?.longitude ?? 0,
         created_at: now.toISOString(),
-        // Stringify JSON data to ensure it's properly stored
-        time_data: JSON.stringify({
-          hour,
-          minute,
-          formatted_time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-          day_of_week: dayOfWeek,
-          time_of_day: timeOfDay,
-          timestamp: now.getTime()
-        }),
-        device_info: JSON.stringify({
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          timestamp: now.toISOString(),
-        }),
+        // Remove time_data and device_info fields as they don't exist in the schema
       };
       
       console.log("Submitting report data:", reportData);
@@ -880,7 +867,7 @@ const NoiseRecorder = () => {
         throw error;
       }
       
-      // Also save to localStorage for admin portal
+      // Also save to localStorage for admin portal (with the extra fields)
       try {
         // Get existing reports
         const existingReportsJson = localStorage.getItem('noiseReports');
