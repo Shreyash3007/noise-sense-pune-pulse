@@ -1,4 +1,3 @@
-
 import { AlertTriangle, BookOpen, Check, ExternalLink, HelpCircle, Volume2, Headphones, MapPin, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";

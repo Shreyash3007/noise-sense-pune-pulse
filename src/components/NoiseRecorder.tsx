@@ -205,11 +205,11 @@ const calculateDecibelsWithWeighting = (dataArray: Uint8Array, analyser: Analyse
   const noiseFloor = 0.5; // Reduce background noise influence
   const weightedRMS = Math.sqrt((weightedSum + noiseFloor) / Math.max(1, weightTotal * dataArray.length));
   
-  // Convert to dB scale with improved calibration factor
-  // Based on empirical testing and calibration against reference devices
-  const calibrationOffset = 40; // Increased calibration offset for better accuracy
+  // Convert to dB scale with recalibrated offset
+  // Adjusted to start closer to 20-25dB for quiet environments instead of 40dB
+  const calibrationOffset = 28; // Reduced from 40 to 28
   const dynamicRange = Math.max(0.1, Math.min(1.0, peakAmplitude / 255)); // Dynamic range compensation
-  const dbApprox = Math.max(30, Math.round(20 * Math.log10(weightedRMS + 1) * (1 + dynamicRange * 0.1) + calibrationOffset));
+  const dbApprox = Math.max(20, Math.round(20 * Math.log10(weightedRMS + 1) * (1 + dynamicRange * 0.1) + calibrationOffset));
   
   return dbApprox;
 };
@@ -336,8 +336,8 @@ const NoiseRecorder = () => {
   const [mapLoadingStatus, setMapLoadingStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   
   // State for Google Maps
-  const [googleMap, setGoogleMap] = useState<google.maps.Map | null>(null);
-  const [googleMarker, setGoogleMarker] = useState<google.maps.Marker | null>(null);
+  const [googleMap, setGoogleMap] = useState<any | null>(null);
+  const [googleMarker, setGoogleMarker] = useState<any | null>(null);
   
   useEffect(() => {
     if (!isRecording) {
@@ -845,7 +845,7 @@ const NoiseRecorder = () => {
         },
       };
       
-      // Prepare report data for Supabase with explicit null handling and enhanced time data
+      // Prepare report data for Supabase with proper handling of JSON fields
       const reportData = {
         decibel_level: decibels,
         noise_type: noiseType,
@@ -854,25 +854,31 @@ const NoiseRecorder = () => {
         latitude: location?.latitude ?? 0,
         longitude: location?.longitude ?? 0,
         created_at: now.toISOString(),
-        time_data: {
+        // Stringify JSON data to ensure it's properly stored
+        time_data: JSON.stringify({
           hour,
           minute,
           formatted_time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
           day_of_week: dayOfWeek,
           time_of_day: timeOfDay,
           timestamp: now.getTime()
-        },
-        device_info: {
+        }),
+        device_info: JSON.stringify({
           userAgent: navigator.userAgent,
           platform: navigator.platform,
           timestamp: now.toISOString(),
-        },
+        }),
       };
+      
+      console.log("Submitting report data:", reportData);
       
       // Submit to Supabase
       const { error } = await supabase.from("noise_reports").insert(reportData);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
       
       // Also save to localStorage for admin portal
       try {
@@ -890,6 +896,12 @@ const NoiseRecorder = () => {
         console.error("Error saving to localStorage:", localStorageError);
         // Continue with submission process even if localStorage fails
       }
+
+      // Determine the department type based on noise_type
+      const departmentType = getDepartmentType(noiseType);
+      
+      // Store the department type for use in the success dialog
+      localStorage.setItem('lastReportDepartment', departmentType);
 
       setShowSuccessDialog(true);
       
@@ -909,6 +921,28 @@ const NoiseRecorder = () => {
         description: "Could not submit your report. Please try again.",
         variant: "destructive",
       });
+    }
+  };
+
+  // Helper function to determine department type based on noise type
+  const getDepartmentType = (noiseType: string): string => {
+    const trafficTypes = ['traffic', 'road', 'vehicle', 'transport', 'car', 'bus', 'train', 'auto'];
+    const constructionTypes = ['construction', 'drilling', 'building', 'machinery'];
+    const industrialTypes = ['industrial', 'factory', 'manufacturing', 'industry'];
+    const socialTypes = ['people', 'crowd', 'gathering', 'event', 'festival', 'celebration', 'social'];
+    
+    const lowerCaseType = noiseType.toLowerCase();
+    
+    if (trafficTypes.some(type => lowerCaseType.includes(type))) {
+      return 'RTO (Regional Transport Office)';
+    } else if (constructionTypes.some(type => lowerCaseType.includes(type))) {
+      return 'PMC (Pune Municipal Corporation) - Building Department';
+    } else if (industrialTypes.some(type => lowerCaseType.includes(type))) {
+      return 'Pollution Control Board';
+    } else if (socialTypes.some(type => lowerCaseType.includes(type))) {
+      return 'Police Department';
+    } else {
+      return 'PMC (Pune Municipal Corporation)';
     }
   };
 
@@ -1347,80 +1381,43 @@ const NoiseRecorder = () => {
 
   // Initialize Google Maps
   const initializeMap = async () => {
-    if (!mapRef.current || !location) return;
-    setMapLoadingStatus("loading");
-    
-    // Immediately show the static map as a placeholder while loading the interactive map
-    if (mapRef.current && location) {
-      const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${location.latitude},${location.longitude}&zoom=14&size=800x600&scale=2&markers=color:red%7C${location.latitude},${location.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
-      
-      mapRef.current.style.backgroundImage = `url(${staticMapUrl})`;
-      mapRef.current.style.backgroundSize = 'cover';
-      mapRef.current.style.backgroundPosition = 'center';
-    }
-    
-    // Set a timeout to prevent indefinite loading state
-    const mapLoadTimeout = setTimeout(() => {
-      if (mapLoadingStatus === "loading" && isMountedRef.current) {
-        console.warn("Map loading timeout - falling back to static map");
-        setMapLoadingStatus("success"); // Treat as success to hide loading indicator
-      }
-    }, 8000); // 8 second timeout
-    
     try {
-      // Load Google Maps API if not loaded, with a timeout
-      if (!googleMapsLoaded) {
-        try {
-          await Promise.race([
-            loadGoogleMapsAPI(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Map loading timeout")), 5000))
-          ]);
-        } catch (apiError) {
-          console.warn("Google Maps API load timeout, using static map instead");
-          clearTimeout(mapLoadTimeout);
-          
-          // Still consider this a success but use the static map
-          if (isMountedRef.current) {
-            setMapLoadingStatus("success");
-          }
-          return null;
-        }
+      setMapLoadingStatus("loading");
+      
+      await loadGoogleMapsAPI();
+      
+      if (!mapRef.current) {
+        console.error("Map container ref not available");
+        setMapLoadingStatus("error");
+        return;
       }
       
-      // Double-check if the component is still mounted
-      if (!isMountedRef.current || !mapRef.current) {
-        clearTimeout(mapLoadTimeout);
-        return null;
-      }
-      
-      // Get coordinates (with fallback)
-      const lat = location?.latitude || 18.5204; // Default to Pune
-      const lng = location?.longitude || 73.8567;
-      
-      geoDebug(`Initializing Google Maps with coordinates: ${lat}, ${lng}`);
-      
-      // Create map with optimized settings for faster loading
+      // Create map instance
       const mapOptions = {
-        center: { lat, lng },
+        center: {
+          lat: location?.latitude || 18.5204,
+          lng: location?.longitude || 73.8567
+        },
         zoom: 15,
-        mapTypeId: window.google?.maps?.MapTypeId?.ROADMAP,
+        zoomControl: true,
+        mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        mapTypeControl: false,
-        zoomControlOptions: {
-          position: window.google?.maps?.ControlPosition?.RIGHT_TOP
-        },
-        // Performance optimizations
-        disableDefaultUI: false,
-        gestureHandling: 'cooperative' as any,
-        clickableIcons: false,
+        styles: [
+          {
+            featureType: "poi",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }]
+          }
+        ]
       };
       
       const map = new window.google.maps.Map(mapRef.current, mapOptions);
+      setGoogleMap(map);
       
       // Create marker with simplified animation
       const marker = new window.google.maps.Marker({
-        position: { lat, lng },
+        position: { lat: location?.latitude || 18.5204, lng: location?.longitude || 73.8567 },
         map,
         draggable: true,
         // Skip animation for faster rendering
@@ -1440,14 +1437,12 @@ const NoiseRecorder = () => {
       });
       
       // Hide loading indicator
-      clearTimeout(mapLoadTimeout);
       const loadingElement = mapRef.current.querySelector('.map-loading') as HTMLElement;
       if (loadingElement) {
         loadingElement.style.display = 'none';
       }
       
       if (isMountedRef.current) {
-        setGoogleMap(map);
         setGoogleMarker(marker);
         setMapLoadingStatus("success");
         
@@ -1464,12 +1459,9 @@ const NoiseRecorder = () => {
       }
       
       geoDebug("Google Maps initialized successfully");
-      return { map, marker };
-      
     } catch (error) {
       console.error("Error initializing Google Maps:", error);
       geoDebug("Error initializing Google Maps:", error);
-      clearTimeout(mapLoadTimeout);
       
       if (isMountedRef.current) {
         setMapLoadingStatus("success"); // Still mark as success to hide the loading indicator
@@ -1503,7 +1495,7 @@ const NoiseRecorder = () => {
             mapRef.current.innerHTML = `
               <div class="absolute inset-0 flex items-center justify-center bg-gray-50/30 dark:bg-gray-900/30 z-10 map-loading">
                 <div class="flex flex-col items-center bg-white/80 dark:bg-black/50 p-3 rounded-lg">
-                  <div class="h-8 w-8 border-4 border-t-purple-500 rounded-full animate-spin mb-2"></div>
+                  <div className="h-8 w-8 border-4 border-t-purple-500 rounded-full animate-spin mb-2"></div>
                   <p class="text-sm text-gray-700 dark:text-gray-300">Loading map...</p>
                 </div>
               </div>
@@ -1636,6 +1628,22 @@ const NoiseRecorder = () => {
         </DialogContent>
       </Dialog>
     );
+  };
+
+  // Helper function to get department URL
+  const getDepartmentUrl = (department: string): string => {
+    switch(department) {
+      case 'RTO (Regional Transport Office)':
+        return 'https://transport.maharashtra.gov.in/1035/Pune-RTO';
+      case 'PMC (Pune Municipal Corporation) - Building Department':
+        return 'https://www.pmc.gov.in/en/building-permission-department';
+      case 'Pollution Control Board':
+        return 'https://mpcb.gov.in';
+      case 'Police Department':
+        return 'https://www.punepolice.gov.in';
+      default:
+        return 'https://www.pmc.gov.in';
+    }
   };
 
   return (
@@ -1848,20 +1856,39 @@ const NoiseRecorder = () => {
             <p className="text-sm text-gray-500 dark:text-gray-400">
               You can view it on the map along with other noise reports.
             </p>
+            <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-md">
+              <p className="text-sm font-medium mb-1">Recommended Department:</p>
+              <p className="font-bold text-purple-600 dark:text-purple-400">
+                {localStorage.getItem('lastReportDepartment') || 'PMC (Pune Municipal Corporation)'}
+              </p>
+            </div>
           </div>
           
-          <DialogFooter className="sm:justify-center">
+          <DialogFooter className="sm:justify-center gap-3 flex-col sm:flex-row">
             <Button 
               type="button" 
               variant="default" 
               onClick={() => {
                 setShowSuccessDialog(false);
-                // Redirect to the About page after closing the dialog
-                navigate('/about');
+                navigate('/map');
               }}
               className="w-full sm:w-auto"
             >
-              Learn More About Noise Pollution
+              View on Map
+            </Button>
+
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                const department = localStorage.getItem('lastReportDepartment') || 'PMC';
+                const deptUrl = getDepartmentUrl(department);
+                window.open(deptUrl, '_blank');
+                setShowSuccessDialog(false);
+              }}
+              className="w-full sm:w-auto"
+            >
+              Forward to Department
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   ResponsiveContainer,
@@ -66,6 +65,18 @@ export const NoiseHeatmapChart = ({
     return "#22c55e";
   };
 
+  const getMarkerSize = (value: number) => {
+    if (value >= 80) return 70;
+    if (value >= 70) return 60; 
+    if (value >= 60) return 50;
+    if (value >= 50) return 40;
+    return 30;
+  };
+
+  const getStrokeColor = () => {
+    return "rgba(0, 0, 0, 0.5)";
+  };
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
@@ -130,14 +141,19 @@ export const NoiseHeatmapChart = ({
                 />
                 <ZAxis
                   dataKey="value"
-                  range={[50, 400]}
+                  range={[getMarkerSize(0), getMarkerSize(100)]}
                   name="Decibel Level"
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
                 <Scatter name="Noise Reports" data={heatmapData} fill="#8884d8">
                   {heatmapData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={getColor(entry.value)} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={getColor(entry.value)}
+                      stroke={getStrokeColor()}
+                      strokeWidth={1}
+                    />
                   ))}
                 </Scatter>
               </ScatterChart>

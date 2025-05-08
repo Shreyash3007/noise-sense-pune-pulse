@@ -1260,11 +1260,32 @@ const AdminPortal: React.FC = () => {
                     ]}
                     margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
                   >
-                    <XAxis dataKey="time" />
-                    <YAxis />
+                    <defs>
+                      <linearGradient id="colorTime" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.2}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" tick={{ fill: 'var(--foreground)' }}/>
+                    <YAxis tick={{ fill: 'var(--foreground)' }}/>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="value" stroke="var(--color-primary)" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'var(--background)', 
+                        borderColor: 'var(--border)',
+                        color: 'var(--foreground)'
+                      }}
+                      formatter={(value) => [`${value} reports`, 'Count']}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={3}
+                      activeDot={{ r: 8, fill: '#8b5cf6', stroke: 'white', strokeWidth: 2 }}
+                      dot={{ r: 4, fill: '#8b5cf6', stroke: 'white', strokeWidth: 2 }}
+                      name="Number of Reports"
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>

@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import NoiseSenseLogo from "@/components/NoiseSenseLogo";
 import { Map, Mail, Github, Twitter, Linkedin, ExternalLink, Heart } from "lucide-react";
@@ -86,7 +85,7 @@ export function Footer() {
               </motion.div>
               <motion.div whileHover="hover" whileTap="tap" initial="initial" variants={linkAnimation}>
                 <Link to="/map" className="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors duration-200 flex items-center gap-2">
-                  Analytics Dashboard
+                  Noise Map
                 </Link>
               </motion.div>
               <motion.div whileHover="hover" whileTap="tap" initial="initial" variants={linkAnimation}>
