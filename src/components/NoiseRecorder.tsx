@@ -72,7 +72,7 @@ let googleMapsLoaded = false;
 // ---------- Google Maps API Configuration ----------
 // Google Maps API is used for location confirmation only
 const GOOGLE_MAPS_API_KEY = "AIzaSyALJsqgMgW-IAGXnnaB3d_oLdeaFxH-AaA";
-const GOOGLE_MAPS_LIBRARIES = ["places"];
+const GOOGLE_MAPS_LIBRARIES = ["places", "marker"];
 
 // Enhanced helper to load Google Maps API script with better caching and error handling
 const loadGoogleMapsAPI = (): Promise<void> => {
@@ -91,7 +91,10 @@ const loadGoogleMapsAPI = (): Promise<void> => {
       const timeoutId = setTimeout(() => {
         // If still not loaded after timeout, try again from scratch
         if (!googleMapsLoaded) {
-          document.head.removeChild(existingScript);
+          // Only remove if it's still a child of document.head
+          if (existingScript.parentNode === document.head) {
+            document.head.removeChild(existingScript);
+          }
           window.initGoogleMaps = undefined;
           loadGoogleMapsAPI().then(resolve).catch(reject);
         }
@@ -105,10 +108,10 @@ const loadGoogleMapsAPI = (): Promise<void> => {
       return;
     }
 
-    // Create script element with priority loading
+    // Create script element with proper async loading
     const script = document.createElement('script');
     script.id = 'google-maps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=${GOOGLE_MAPS_LIBRARIES.join(',')}&callback=initGoogleMaps&v=weekly`; // Add version for better caching
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=${GOOGLE_MAPS_LIBRARIES.join(',')}&callback=initGoogleMaps&v=weekly`;
     script.defer = true;
     script.async = true;
     
@@ -125,9 +128,15 @@ const loadGoogleMapsAPI = (): Promise<void> => {
 
     // Add timeout for script loading
     const timeoutId = setTimeout(() => {
-      if (!googleMapsLoaded && script.parentNode) {
-        console.warn('Google Maps script load timeout - retrying');
-        document.head.removeChild(script);
+      if (!googleMapsLoaded) {
+        // Only remove if it's still a child of document.head
+        if (script.parentNode === document.head) {
+          try {
+            document.head.removeChild(script);
+          } catch (e) {
+            console.warn("Error removing script:", e);
+          }
+        }
         window.initGoogleMaps = undefined;
         // Fall back to static map if multiple failures occur
         reject(new Error('Google Maps load timeout'));
@@ -139,9 +148,13 @@ const loadGoogleMapsAPI = (): Promise<void> => {
       clearTimeout(timeoutId);
       console.error('Error loading Google Maps API:', error);
       
-      // Remove failed script
-      if (script.parentNode) {
-        document.head.removeChild(script);
+      // Remove failed script - check parentNode first
+      if (script.parentNode === document.head) {
+        try {
+          document.head.removeChild(script);
+        } catch (e) {
+          console.warn("Error removing script on error:", e);
+        }
       }
       
       reject(new Error('Failed to load Google Maps API'));
@@ -763,12 +776,39 @@ const NoiseRecorder = () => {
         setIsRecording(false);
         setRecordingStage("done");
         
-        // Properly clean up audio resources
+        // Properly clean up audio resources with better error handling
         if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
+          try {
+            const tracks = streamRef.current.getTracks();
+            tracks.forEach(track => {
+              try {
+                track.stop();
+              } catch (trackErr) {
+                console.warn("Error stopping track:", trackErr);
+              }
+            });
+            streamRef.current = null;
+          } catch (streamErr) {
+            console.warn("Error cleaning up audio stream:", streamErr);
+          }
         }
+        
+        if (analyserRef.current) {
+          try {
+            // No need to disconnect source here, it's gone out of scope already
+            analyserRef.current = null;
+          } catch (analyserErr) {
+            console.warn("Error cleaning up analyser:", analyserErr);
+          }
+        }
+        
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close().catch(err => console.warn('AudioContext close error:', err));
+          try {
+            audioContextRef.current.close().catch(err => console.warn('AudioContext close error:', err));
+            audioContextRef.current = null;
+          } catch (ctxErr) {
+            console.warn('AudioContext close error:', ctxErr);
+          }
         }
       }, 10000);
     } catch (error) {
@@ -1476,7 +1516,24 @@ const NoiseRecorder = () => {
         await new Promise(resolve => setTimeout(resolve, 200));
         
         // Create marker with simplified animation
-        if (window.google?.maps?.Marker) {
+        if (window.google?.maps?.marker?.AdvancedMarkerElement) {
+          // Use the new recommended AdvancedMarkerElement
+          const position = { lat: location?.latitude || 18.5204, lng: location?.longitude || 73.8567 };
+          
+          // Create a marker with advanced features
+          const marker = new window.google.maps.marker.AdvancedMarkerElement({
+            position,
+            map,
+            draggable: true,
+            title: "Your location"
+          });
+          
+          if (isMountedRef.current) {
+            setGoogleMarker(marker);
+          }
+        } else if (window.google?.maps?.Marker) {
+          // Fall back to legacy marker if AdvancedMarkerElement is not available
+          console.warn("Using legacy Marker API - AdvancedMarkerElement not available");
           const marker = new window.google.maps.Marker({
             position: { lat: location?.latitude || 18.5204, lng: location?.longitude || 73.8567 },
             map,
@@ -1583,18 +1640,43 @@ const NoiseRecorder = () => {
   
   // Update useEffect for map initialization
   useEffect(() => {
+    let mapInstance = null;
+    let markerInstance = null;
+    
     if (isLocationMapOpen && mapRef.current) {
       // Initialize Google Maps
       initializeMap();
-      
-      // Cleanup
-      return () => {
-        setGoogleMap(null);
-        setGoogleMarker(null);
-        setMapLoadingStatus("idle");
-      };
     }
-  }, [isLocationMapOpen, mapRef.current]);
+    
+    // Cleanup
+    return () => {
+      // Clean up marker first
+      if (googleMarker) {
+        try {
+          googleMarker.setMap(null);
+        } catch (markerErr) {
+          console.warn("Error during marker cleanup:", markerErr);
+        }
+      }
+      
+      // Clean up map object references
+      if (googleMap) {
+        try {
+          // Release any event listeners
+          if (window.google?.maps?.event) {
+            window.google.maps.event.clearInstanceListeners(googleMap);
+          }
+        } catch (mapErr) {
+          console.warn("Error during map event cleanup:", mapErr);
+        }
+      }
+      
+      // Clear map reference in state
+      setGoogleMap(null);
+      setGoogleMarker(null);
+      setMapLoadingStatus("idle");
+    };
+  }, [isLocationMapOpen, googleMap, googleMarker]);
 
   // Update renderLocationConfirmationDialog to use Google Maps
   const renderLocationConfirmationDialog = () => {
